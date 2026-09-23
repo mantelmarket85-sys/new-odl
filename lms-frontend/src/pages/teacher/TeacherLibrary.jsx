@@ -447,7 +447,7 @@ const TeacherLibrary = () => {
             <label className="text-xs font-semibold text-app mb-1 block">Course</label>
             <select className="input-base w-full text-sm" value={form.offeringId} onChange={(e) => setForm({ ...form, offeringId: e.target.value })}>
               <option value="">Select a course…</option>
-              {categories.map((c) => <option key={c.offeringId} value={c.offeringId}>{c.semester ? `${c.semester} · ` : ""}{c.courseCode} — {c.courseTitle}</option>)}
+              {offerings.map((c) => <option key={c.offeringId} value={c.offeringId}>{c.semester ? `${c.semester} · ` : ""}{c.courseCode} — {c.courseTitle}</option>)}
             </select>
           </div>
           <div>

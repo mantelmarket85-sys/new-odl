@@ -922,14 +922,16 @@ function GradebookTab({ offeringId }) {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.teacher.gradebook(offeringId), [offeringId]);
   const rows = useMemo(() => data?.rows || [], [data]);
-  // Client requirement 2.3 — components (+ weightage) come from the
-  // coordinator's CourseWeightage, identical to the Marks module.
+  const items = useMemo(() => data?.offering?.items || [], [data]);
   const components = useMemo(() => data?.offering?.components || [
     { key: "assignment", label: "Assignment", marksField: "assignmentMarks", maxField: "assignmentMax", weight: 0 },
     { key: "quiz", label: "Quiz", marksField: "quizMarks", maxField: "quizMax", weight: 0 },
     { key: "mid", label: "Mid", marksField: "midMarks", maxField: "midMax", weight: 0 },
     { key: "final", label: "Final", marksField: "finalMarks", maxField: "finalMax", weight: 0 },
   ], [data]);
+  const columns = items.length
+    ? items
+    : components.map((c) => ({ ...c, itemWeight: c.weight, editable: true, kind: c.key }));
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -938,15 +940,16 @@ function GradebookTab({ offeringId }) {
     const init = {};
     rows.forEach((r) => {
       const e = {};
-      components.forEach((c) => {
-        if (c.key === "assignment") e[c.marksField] = r.assignmentMarks ?? r.computedAssignment ?? 0;
-        else if (c.key === "quiz") e[c.marksField] = r.quizMarks ?? r.computedQuiz ?? 0;
+      columns.forEach((c) => {
+        if (!c.editable || !c.marksField) return;
+        if (c.kind === "assignment") e[c.marksField] = r.assignmentMarks ?? r.computedAssignment ?? 0;
+        else if (c.kind === "quiz") e[c.marksField] = r.quizMarks ?? r.computedQuiz ?? 0;
         else e[c.marksField] = r[c.marksField] ?? 0;
       });
       init[r.studentId] = e;
     });
     setEdits(init);
-  }, [rows, components]);
+  }, [rows, columns]);
 
   const setVal = (sid, field, val) => setEdits((e) => ({ ...e, [sid]: { ...e[sid], [field]: val } }));
 
@@ -954,7 +957,8 @@ function GradebookTab({ offeringId }) {
     const results = rows.map((r) => {
       const row = { studentId: r.studentId };
       components.forEach((c) => {
-        row[c.marksField] = parseFloat(edits[r.studentId]?.[c.marksField]) || 0;
+        const edited = edits[r.studentId]?.[c.marksField];
+        row[c.marksField] = edited != null && edited !== "" ? parseFloat(edited) : (parseFloat(r[c.marksField]) || 0);
         row[c.maxField] = r[c.maxField] ?? 100;
       });
       return row;
@@ -970,6 +974,24 @@ function GradebookTab({ offeringId }) {
     try { const res = await api.teacher.publishResults(offeringId); toast(res.message || "Published", { type: "success" }); await reload(); }
     catch (e) { toast(e.message, { type: "error" }); }
     finally { setPublishing(false); }
+  };
+
+  const cellDisplay = (r, col) => {
+    const cell = r.cells?.[col.key];
+    if (cell) {
+      if (cell.pending || cell.converted == null) return <span className="font-medium text-slate-400">Pending</span>;
+      return (
+        <span className="text-app">
+          {Number(cell.converted).toFixed(2)}
+          {cell.obtained != null && cell.total != null ? (
+            <span className="block text-[9px] font-normal text-muted-app">{cell.obtained}/{cell.total}</span>
+          ) : null}
+        </span>
+      );
+    }
+    const v = r[col.marksField];
+    if (v == null || (Number(v) === 0 && r.resultStatus !== "PUBLISHED")) return <span className="font-medium text-slate-400">Pending</span>;
+    return <span className="text-app">{v}</span>;
   };
 
   if (loading) return <Skeleton className="h-48 w-full rounded-2xl" />;
@@ -995,19 +1017,23 @@ function GradebookTab({ offeringId }) {
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
             <th className="px-3 py-3">Student</th>
-            {components.map((c) => (
-              <th key={c.key} className="px-3 py-3 text-center">{c.label}{c.weight ? <span className="block text-[9px] font-normal normal-case text-muted-app">{c.weight}%</span> : null}</th>
+            {columns.map((c) => (
+              <th key={c.key} className="px-3 py-3 text-center">{c.label}{(c.itemWeight != null || c.weight) ? <span className="block text-[9px] font-normal normal-case text-muted-app">wt {c.itemWeight ?? c.weight}</span> : null}</th>
             ))}
-            <th className="px-3 py-3 text-center">Total%</th><th className="px-3 py-3 text-center">Grade</th><th className="px-3 py-3 text-center">Status</th>
+            <th className="px-3 py-3 text-center">Total</th><th className="px-3 py-3 text-center">Grade</th><th className="px-3 py-3 text-center">Status</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.studentId} className="border-t border-slate-100 dark:border-slate-800">
                 <td className="px-3 py-2"><p className="font-semibold text-app">{r.name}</p><p className="text-xs font-mono text-muted-app">{r.rollNumber}</p></td>
-                {components.map((c) => (
-                  <td key={c.marksField} className="px-3 py-2 text-center"><input type="number" value={edits[r.studentId]?.[c.marksField] ?? ""} onChange={(e) => setVal(r.studentId, c.marksField, e.target.value)} className="input-base w-16 text-center text-sm" /></td>
+                {columns.map((c) => (
+                  <td key={c.key} className="px-3 py-2 text-center">
+                    {c.editable && c.marksField ? (
+                      <input type="number" value={edits[r.studentId]?.[c.marksField] ?? ""} onChange={(e) => setVal(r.studentId, c.marksField, e.target.value)} className="input-base w-16 text-center text-sm" />
+                    ) : cellDisplay(r, c)}
+                  </td>
                 ))}
-                <td className="px-3 py-2 text-center font-bold">{r.totalPercent != null ? `${r.totalPercent}%` : "—"}</td>
+                <td className="px-3 py-2 text-center font-bold">{r.totalPercent != null ? r.totalPercent : "—"}</td>
                 <td className="px-3 py-2 text-center">{r.letterGrade ? <Badge color={r.letterGrade === "F" ? "rose" : "emerald"}>{r.letterGrade}</Badge> : "—"}</td>
                 <td className="px-3 py-2 text-center text-xs">{r.resultStatus ? <Badge color={r.resultStatus === "PUBLISHED" ? "emerald" : "slate"} size="sm">{r.resultStatus.toLowerCase()}</Badge> : "—"}</td>
               </tr>
@@ -1015,7 +1041,7 @@ function GradebookTab({ offeringId }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-app">Tip: Assignment/Quiz columns are pre-filled from real submissions &amp; quiz attempts. Adjust then Save Draft, and Publish when ready (visible to students).</p>
+      <p className="text-xs text-muted-app">Quiz / Assignment / Lab columns are converted from real submissions ((obtained / total) × item weight, capped). Mid &amp; Final can be entered, then Save Draft and Publish when ready.</p>
     </div>
   );
 }
@@ -1057,14 +1083,6 @@ function AnnouncementsTab({ offeringId }) {
               <p className="text-sm text-muted-app mt-1 whitespace-pre-wrap">{a.message || a.body || a.content}</p>
             </div>
           ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default ManageOffering;
-)}
         </div>
       )}
     </div>

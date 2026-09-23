@@ -1753,7 +1753,18 @@ router.get('/library', asyncHandler(async (req, res) => {
       url: m.url, fileName: m.fileName, filePath: m.filePath, createdAt: m.createdAt,
     });
   }
-  res.json({ categories: Object.values(categories), total: materials.length });
+  const offeringsList = offerings.map((o) => {
+    const sem = o.course && o.course.semester
+      ? (o.course.semester.title || (o.course.semester.number != null ? `Semester ${o.course.semester.number}` : ''))
+      : '';
+    return {
+      offeringId: o.id,
+      courseCode: o.course ? o.course.code : '',
+      courseTitle: o.course ? o.course.title : '',
+      semester: sem,
+    };
+  });
+  res.json({ categories: Object.values(categories), total: materials.length, offerings: offeringsList });
 }));
 
 // Create a library resource (non-video) — 5MB cap, per-teacher scoped.
@@ -2452,17 +2463,6 @@ router.get('/schedule', asyncHandler(async (req, res) => {
       courseCode: s.offering.course.code,
       courseTitle: s.offering.course.title,
       startTime: s.startTime,
-      endTime: s.endTime,
-      room: s.room,
-      mode: s.mode,
-      slotType: s.slotType || 'THEORY',
-    });
-  }
-  res.json({ schedule: byDay });
-}));
-
-module.exports = router;
-,
       endTime: s.endTime,
       room: s.room,
       mode: s.mode,
