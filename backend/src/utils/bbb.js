@@ -77,7 +77,16 @@ async function ensureMeeting({ liveClassId, name, moderatorPW, attendeePW, durat
     record: record ? 'true' : 'false',
     autoStartRecording: 'false',
     allowStartStopRecording: 'true',
-    welcome: 'Welcome to the live class.',
+    welcome: 'Welcome to the live class. Audio, webcam, chat, whiteboard, polls and screen sharing are available.',
+    muteOnStart: 'false',
+    webcamsOnlyForModerator: 'false',
+    allowModsToUnmuteUsers: 'true',
+    lockSettingsDisableCam: 'false',
+    lockSettingsDisableMic: 'false',
+    lockSettingsDisablePrivateChat: 'false',
+    lockSettingsDisablePublicChat: 'false',
+    lockSettingsDisableNotes: 'false',
+    lockSettingsLockedLayout: 'false',
   };
   if (durationMin && Number(durationMin) > 0) params.duration = String(durationMin);
 

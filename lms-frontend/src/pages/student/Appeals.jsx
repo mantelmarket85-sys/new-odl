@@ -83,8 +83,10 @@ const StudentCaseModal = ({ caseId, onClose, onChanged, recipientLabel }) => {
 
   const bottomRef = useRef(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent } = {}) => {
+    // Keep the conversation on screen after Send — never flash a skeleton
+    // when we already have case data.
+    if (!silent) setLoading(true);
     setError("");
     try {
       const res = await api.student.grievanceCase(caseId);
@@ -127,7 +129,7 @@ const StudentCaseModal = ({ caseId, onClose, onChanged, recipientLabel }) => {
       await api.student.grievanceReply(caseId, fd);
       setReply("");
       setFile(null);
-      await load();
+      await load({ silent: true });
       onChanged?.();
     } catch (e) {
       toast(e.message || "Failed to send reply", { type: "error" });
@@ -141,7 +143,7 @@ const StudentCaseModal = ({ caseId, onClose, onChanged, recipientLabel }) => {
     try {
       await api.student.grievanceReopen(caseId, {});
       toast("Case reopened — staff have been notified");
-      await load();
+      await load({ silent: true });
       onChanged?.();
     } catch (e) {
       toast(e.message || "Failed to reopen case", { type: "error" });
@@ -167,7 +169,7 @@ const StudentCaseModal = ({ caseId, onClose, onChanged, recipientLabel }) => {
       setFbResolved(null);
       setFbRating(0);
       setFbComment("");
-      await load();
+      await load({ silent: true });
       onChanged?.();
     } catch (e) {
       toast(e.message || "Failed to submit feedback", { type: "error" });

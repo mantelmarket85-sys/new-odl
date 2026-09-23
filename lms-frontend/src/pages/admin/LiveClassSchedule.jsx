@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Video, Plus, Users, Calendar, Clock, Trash2, Pencil, ExternalLink, RefreshCw, Loader2 } from "lucide-react";
+import { Video, Plus, Users, Calendar, Clock, Trash2, Pencil, ExternalLink, RefreshCw, Loader2, Info, Mic, Camera, MessageSquare, PenTool, MonitorUp } from "lucide-react";
 import { useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
 import Modal from "../../components/common/Modal";
@@ -149,6 +149,25 @@ const LiveClassSchedule = () => {
         breadcrumb={["Dashboard", "Live Class Schedule"]}
         actions={headerActions}
       />
+
+      <div className="mb-5 rounded-2xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 flex items-start gap-3">
+        <Info size={18} className="text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+        <div className="text-sm text-blue-800 dark:text-blue-200">
+          <p>
+            When BigBlueButton is configured on the LMS server, a classroom is created automatically for each scheduled class.
+            Teachers join as hosts and students join in-app — no manual meeting link is required.
+          </p>
+          <p className="mt-1.5 text-xs flex flex-wrap gap-x-3 gap-y-1">
+            <span className="font-semibold">Classroom tools:</span>
+            <span className="inline-flex items-center gap-1"><Mic size={12} /> Audio</span>
+            <span className="inline-flex items-center gap-1"><Camera size={12} /> Webcam</span>
+            <span className="inline-flex items-center gap-1"><MessageSquare size={12} /> Chat</span>
+            <span className="inline-flex items-center gap-1"><PenTool size={12} /> Whiteboard</span>
+            <span className="inline-flex items-center gap-1"><MonitorUp size={12} /> Screen share</span>
+            <span className="inline-flex items-center gap-1"><Users size={12} /> Breakout rooms &amp; polls</span>
+          </p>
+        </div>
+      </div>
 
       {loading && (
         <div className="grid lg:grid-cols-2 gap-4">

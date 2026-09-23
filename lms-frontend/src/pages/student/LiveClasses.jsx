@@ -155,6 +155,7 @@ const LiveClasses = () => {
                 const recording = resolveRecording(lc);
                 const isLive = (lc.status || "").toUpperCase() === "LIVE";
                 const ended = ["ENDED", "COMPLETED"].includes((lc.status || "").toUpperCase());
+                const canJoin = !ended && (lc.canJoin || lc.bbbConfigured || !!lc.joinUrl);
                 return (
                   <motion.div key={lc.id || i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 flex flex-col md:flex-row md:items-center gap-4">
                     <div className="p-3 rounded-xl bg-gradient-to-br from-rose-500 to-pink-600 text-white shrink-0"><Video size={22} /></div>

@@ -66,6 +66,11 @@ const TeacherLibrary = () => {
   const { data, loading, error, reload } = useApi(() => api.teacher.library(), []);
 
   const categories = useMemo(() => data?.categories || [], [data]);
+  const offerings = useMemo(() => {
+    if (data?.offerings?.length) return data.offerings;
+    return categories.map((c) => ({ offeringId: c.offeringId, courseCode: c.courseCode, courseTitle: c.courseTitle, semester: c.semester }));
+  }, [data, categories]);
+  const canAdd = offerings.length > 0;
 
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState("all");
@@ -154,7 +159,7 @@ const TeacherLibrary = () => {
   const toggleCourse = (code) => setExpanded((e) => ({ ...e, [code]: !e[code] }));
 
   const openUploadModal = () => {
-    setForm({ ...blankForm, offeringId: categories[0]?.offeringId || "" });
+    setForm({ ...blankForm, offeringId: offerings[0]?.offeringId || categories[0]?.offeringId || "" });
     setDragOver(false);
     setOpenUpload(true);
   };
@@ -262,7 +267,7 @@ const TeacherLibrary = () => {
         icon="Library"
         breadcrumb={["Teacher", "Library"]}
         actions={
-          categories.length > 0 && (
+          canAdd && (
             <button onClick={openUploadModal} className="btn-primary text-sm py-2 px-4 flex items-center gap-2">
               <Upload size={14} /> Add Resource
             </button>
@@ -277,6 +282,8 @@ const TeacherLibrary = () => {
           icon="Library"
           title="Your library is empty"
           description="You haven't shared any resources yet. Add books, slides, notes or PDFs (up to 5MB) for your active courses."
+          action={canAdd ? openUploadModal : undefined}
+          actionLabel="Add Resource"
         />
       ) : (
         <>

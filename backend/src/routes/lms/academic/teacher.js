@@ -989,13 +989,14 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
   const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
   const offeringId = offering.id;
 
-  const [regs, assignments, quizzes, results] = await Promise.all([
+  const [regs, assignments, quizzes, labTasks, results] = await Promise.all([
     prisma.courseRegistration.findMany({
       where: { offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
       include: { student: { include: { profile: true } } },
     }),
-    prisma.assignment2.findMany({ where: { offeringId, isDeleted: false }, include: { submissions: true } }),
-    prisma.quiz.findMany({ where: { offeringId, isDeleted: false }, include: { attempts: true } }),
+    prisma.assignment2.findMany({ where: { offeringId, isDeleted: false }, include: { submissions: true }, orderBy: { id: 'asc' } }),
+    prisma.quiz.findMany({ where: { offeringId, isDeleted: false }, include: { attempts: true }, orderBy: { id: 'asc' } }),
+    prisma.labTask.findMany({ where: { offeringId, isDeleted: false }, include: { submissions: true }, orderBy: { id: 'asc' } }),
     prisma.courseResult.findMany({ where: { offeringId } }),
   ]);
 
@@ -1007,6 +1008,62 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
   // Marks. Resolve it once for this offering.
   const { weights: resolvedWeights, components } = await resolveOfferingWeights(prisma, offering);
   const hasLab = resolvedWeights.labWeight > 0;
+
+  const round2 = (v) => Math.round(Number(v) * 100) / 100;
+  const convertToWeight = (obtained, total, itemWeight) => {
+    if (obtained == null || total == null || Number(total) <= 0) return null;
+    const cap = Number(itemWeight) || 0;
+    const converted = (Number(obtained) / Number(total)) * cap;
+    return round2(Math.min(Math.max(converted, 0), cap));
+  };
+
+  // Per-item columns: each Quiz / Assignment / Lab listed individually,
+  // with the category weight split equally across items. Mid & Final stay
+  // as single columns. (Teacher Marks & Gradebook requirement.)
+  const equalShare = (weight, count) => (count > 0 ? round2(Number(weight || 0) / count) : round2(Number(weight || 0)));
+  const items = [];
+  if (Number(resolvedWeights.assignmentWeight) > 0) {
+    if (assignments.length) {
+      const share = equalShare(resolvedWeights.assignmentWeight, assignments.length);
+      assignments.forEach((a, i) => items.push({
+        key: `assignment-${a.id}`, kind: 'assignment', id: a.id,
+        label: a.title || `Assignment ${i + 1}`, itemWeight: share,
+        totalMarks: a.totalMarks, editable: false,
+      }));
+    } else {
+      items.push({ key: 'assignment', kind: 'assignment', id: null, label: 'Assignment', itemWeight: round2(resolvedWeights.assignmentWeight), totalMarks: 100, editable: true, marksField: 'assignmentMarks', maxField: 'assignmentMax' });
+    }
+  }
+  if (Number(resolvedWeights.quizWeight) > 0) {
+    if (quizzes.length) {
+      const share = equalShare(resolvedWeights.quizWeight, quizzes.length);
+      quizzes.forEach((q, i) => items.push({
+        key: `quiz-${q.id}`, kind: 'quiz', id: q.id,
+        label: q.title || `Quiz ${i + 1}`, itemWeight: share,
+        totalMarks: q.totalMarks, editable: false,
+      }));
+    } else {
+      items.push({ key: 'quiz', kind: 'quiz', id: null, label: 'Quiz', itemWeight: round2(resolvedWeights.quizWeight), totalMarks: 100, editable: true, marksField: 'quizMarks', maxField: 'quizMax' });
+    }
+  }
+  if (Number(resolvedWeights.midWeight) > 0) {
+    items.push({ key: 'mid', kind: 'mid', id: null, label: 'Mid', itemWeight: round2(resolvedWeights.midWeight), totalMarks: 100, editable: true, marksField: 'midMarks', maxField: 'midMax' });
+  }
+  if (Number(resolvedWeights.labWeight) > 0) {
+    if (labTasks.length) {
+      const share = equalShare(resolvedWeights.labWeight, labTasks.length);
+      labTasks.forEach((t, i) => items.push({
+        key: `lab-${t.id}`, kind: 'lab', id: t.id,
+        label: t.title || `Lab ${i + 1}`, itemWeight: share,
+        totalMarks: t.totalMarks, editable: false,
+      }));
+    } else {
+      items.push({ key: 'lab', kind: 'lab', id: null, label: 'Lab', itemWeight: round2(resolvedWeights.labWeight), totalMarks: 100, editable: true, marksField: 'labMarks', maxField: 'labMax' });
+    }
+  }
+  if (Number(resolvedWeights.finalWeight) > 0) {
+    items.push({ key: 'final', kind: 'final', id: null, label: 'Final', itemWeight: round2(resolvedWeights.finalWeight), totalMarks: 100, editable: true, marksField: 'finalMarks', maxField: 'finalMax' });
+  }
 
   // Pre-index submissions/attempts by student.
   const rows = regs.map((reg) => {
@@ -1042,6 +1099,48 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
       labMax: existing ? (existing.labMax || 100) : 100,
     };
     const grades = buildResultGrades(componentMarks, resolvedWeights);
+
+    const published = !!(existing && existing.status === 'PUBLISHED');
+    const cells = {};
+    for (const item of items) {
+      if (item.kind === 'assignment' && item.id) {
+        const a = assignments.find((x) => x.id === item.id);
+        const sub = a ? a.submissions.find((s) => s.studentId === sid && s.marks != null) : null;
+        const obtained = sub ? Number(sub.marks) : null;
+        const total = a ? Number(a.totalMarks) : item.totalMarks;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: obtained == null };
+      } else if (item.kind === 'quiz' && item.id) {
+        const qz = quizzes.find((x) => x.id === item.id);
+        const att = qz ? qz.attempts.find((t) => t.studentId === sid && t.score != null) : null;
+        const obtained = att ? Number(att.score) : null;
+        const total = att && Number(att.maxScore) > 0 ? Number(att.maxScore) : (qz ? Number(qz.totalMarks) : item.totalMarks);
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: obtained == null };
+      } else if (item.kind === 'lab' && item.id) {
+        const t = labTasks.find((x) => x.id === item.id);
+        const sub = t ? t.submissions.find((s) => s.studentId === sid && s.marks != null) : null;
+        const obtained = sub ? Number(sub.marks) : null;
+        const total = t ? Number(t.totalMarks) : item.totalMarks;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: obtained == null };
+      } else if (item.kind === 'mid') {
+        const raw = existing ? existing.midMarks : null;
+        const entered = raw != null && (published || Number(raw) > 0);
+        const obtained = entered ? Number(raw) : null;
+        const total = existing ? Number(existing.midMax) : 100;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: !entered };
+      } else if (item.kind === 'final') {
+        const raw = existing ? existing.finalMarks : null;
+        const entered = raw != null && (published || Number(raw) > 0);
+        const obtained = entered ? Number(raw) : null;
+        const total = existing ? Number(existing.finalMax) : 100;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: !entered };
+      } else {
+        const obtained = item.marksField && existing ? existing[item.marksField] : null;
+        const total = item.maxField && existing ? existing[item.maxField] : item.totalMarks;
+        const entered = obtained != null && (published || Number(obtained) > 0);
+        cells[item.key] = { obtained: entered ? Number(obtained) : null, total, converted: convertToWeight(entered ? obtained : null, total, item.itemWeight), pending: !entered };
+      }
+    }
+
     return {
       studentId: sid,
       name: reg.student.profile ? reg.student.profile.fullName : reg.student.username,
@@ -1050,6 +1149,7 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
       computedQuiz: quizMarks,
       ...componentMarks,
       ...grades,
+      cells,
       resultStatus: existing ? existing.status : 'DRAFT',
       resultId: existing ? existing.id : null,
     };
@@ -1073,6 +1173,8 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
       // Ordered component list (the single source of truth for which columns
       // BOTH the Gradebook and Marks module render, with identical weightage).
       components,
+      // Per-item columns (each Quiz / Assignment / Lab listed individually).
+      items,
     },
     rows,
   });
@@ -1744,15 +1846,19 @@ router.get('/live-classes', asyncHandler(async (req, res) => {
     where: { offeringId: { in: ids }, isDeleted: false },
     orderBy: { scheduledAt: 'desc' },
   });
+  const bbbConfigured = bbb.isConfigured();
   res.json({
+    bbbConfigured,
     offerings: offerings.map((o) => ({ id: o.id, courseCode: o.course ? o.course.code : '', courseTitle: o.course ? o.course.title : '' })),
     liveClasses: classes.map((c) => {
       const o = offMap[c.offeringId];
+      const status = (c.status || '').toUpperCase();
+      const canJoin = ['LIVE', 'SCHEDULED'].includes(status) && (bbbConfigured || !!c.joinUrl);
       return {
         id: c.id, title: c.title, description: c.description,
         scheduledAt: c.scheduledAt, durationMin: c.durationMin,
         status: c.status, joinUrl: c.joinUrl, recordingUrl: c.recordingUrl,
-        offeringId: c.offeringId,
+        offeringId: c.offeringId, bbbConfigured, canJoin,
         courseCode: o && o.course ? o.course.code : '',
         courseTitle: o && o.course ? o.course.title : '',
       };
@@ -2346,6 +2452,17 @@ router.get('/schedule', asyncHandler(async (req, res) => {
       courseCode: s.offering.course.code,
       courseTitle: s.offering.course.title,
       startTime: s.startTime,
+      endTime: s.endTime,
+      room: s.room,
+      mode: s.mode,
+      slotType: s.slotType || 'THEORY',
+    });
+  }
+  res.json({ schedule: byDay });
+}));
+
+module.exports = router;
+,
       endTime: s.endTime,
       room: s.room,
       mode: s.mode,

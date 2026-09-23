@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Video, Users, Calendar, Clock, Play, Radio, ExternalLink, Loader2, Info, RefreshCw } from "lucide-react";
+import { Video, Users, Calendar, Clock, Play, ExternalLink, Loader2, Info, RefreshCw, Mic, Camera, MessageSquare, PenTool, MonitorUp, BarChart3 } from "lucide-react";
 import { useState } from "react";
 import PageHeader from "../../components/common/PageHeader";
 import Modal from "../../components/common/Modal";
@@ -134,10 +134,22 @@ const TeacherLiveClasses = () => {
       {/* Info banner — scheduling is coordinator-owned (req 2.1). */}
       <div className="mb-5 rounded-2xl border border-blue-200 dark:border-blue-500/30 bg-blue-50 dark:bg-blue-500/10 px-4 py-3 flex items-start gap-3">
         <Info size={18} className="text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
-        <p className="text-sm text-blue-800 dark:text-blue-200">
-          Your live-class timetable is set by the <span className="font-semibold">Course Coordinator</span>.
-          You can start and run each session below — you don't need to (and can't) schedule classes here.
-        </p>
+        <div className="text-sm text-blue-800 dark:text-blue-200">
+          <p>
+            Your live-class timetable is set by the <span className="font-semibold">Course Coordinator</span>.
+            You can start and run each session below — you don't need to (and can't) schedule classes here.
+          </p>
+          <p className="mt-1.5 text-xs flex flex-wrap gap-x-3 gap-y-1">
+            <span className="font-semibold">BigBlueButton classroom:</span>
+            <span className="inline-flex items-center gap-1"><Mic size={12} /> Audio</span>
+            <span className="inline-flex items-center gap-1"><Camera size={12} /> Webcam</span>
+            <span className="inline-flex items-center gap-1"><MessageSquare size={12} /> Chat</span>
+            <span className="inline-flex items-center gap-1"><PenTool size={12} /> Whiteboard</span>
+            <span className="inline-flex items-center gap-1"><MonitorUp size={12} /> Screen share</span>
+            <span className="inline-flex items-center gap-1"><BarChart3 size={12} /> Polls</span>
+            <span className="inline-flex items-center gap-1"><Users size={12} /> Breakout rooms</span>
+          </p>
+        </div>
       </div>
 
       {loading && (

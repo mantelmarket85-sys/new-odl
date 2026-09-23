@@ -27,12 +27,19 @@ const fmtDate = (d) => {
 const Withdrawal = () => {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.student.registrations(), []);
+  const { data: deadlineData } = useApi(() => api.student.withdrawDeadline(), []);
   const [target, setTarget] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const registrations = useMemo(() => data?.registrations || [], [data]);
   const eligible = registrations.filter((r) => (r.status || "").toUpperCase() === "ENROLLED");
   const history = registrations.filter((r) => (r.status || "").toUpperCase() !== "ENROLLED");
+  const deadline = deadlineData?.deadline || null;
+  const isOpen = deadlineData?.isOpen !== false;
+  const isPast = !!deadlineData?.isPast;
+  const deadlineLabel = deadline
+    ? new Date(deadline).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : null;
 
   const confirmWithdraw = async () => {
     if (!target) return;
@@ -53,12 +60,21 @@ const Withdrawal = () => {
     <div>
       <PageHeader title="Course Withdrawal" subtitle="Request withdrawal from an enrolled course and track its status" icon="LogOut" breadcrumb={["Dashboard", "Course Withdrawal"]} />
 
-      {/* Policy notice */}
-      <div className="mb-5 rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50/80 dark:bg-amber-950/30 p-4 flex items-start gap-3">
-        <ShieldQuestion size={18} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-        <p className="text-sm text-amber-800 dark:text-amber-300">
-          Withdrawing from a course follows your program's academic regulations and approval rules. A withdrawal may affect your enrolled credit hours and is subject to the official withdrawal deadline.
-        </p>
+      {/* Policy notice + live Focal Person deadline */}
+      <div className={`mb-5 rounded-2xl border p-4 flex items-start gap-3 ${isPast ? "border-rose-200 dark:border-rose-900/40 bg-rose-50/80 dark:bg-rose-950/30" : "border-amber-200 dark:border-amber-900/40 bg-amber-50/80 dark:bg-amber-950/30"}`}>
+        <ShieldQuestion size={18} className={`mt-0.5 shrink-0 ${isPast ? "text-rose-600 dark:text-rose-400" : "text-amber-600 dark:text-amber-400"}`} />
+        <div className={`text-sm ${isPast ? "text-rose-800 dark:text-rose-300" : "text-amber-800 dark:text-amber-300"}`}>
+          <p>
+            Withdrawing from a course follows your program's academic regulations. A withdrawal may affect your enrolled credit hours.
+          </p>
+          <p className="mt-1.5 font-semibold">
+            {deadlineLabel
+              ? (isPast
+                ? `The withdrawal deadline (${deadlineLabel}) has passed. Withdrawals are closed.`
+                : `Withdrawal deadline: ${deadlineLabel}. You may withdraw up to and including this date.`)
+              : "No withdrawal deadline has been set yet — withdrawals are currently open."}
+          </p>
+        </div>
       </div>
 
       {loading ? (
@@ -84,8 +100,13 @@ const Withdrawal = () => {
                     </div>
                     <h4 className="font-bold text-app mt-1 leading-tight">{r.offering?.course?.title}</h4>
                     <p className="text-xs text-muted-app mt-1">{r.offering?.term?.title} · Registered {fmtDate(r.registeredAt)}</p>
-                    <button onClick={() => setTarget(r)} className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 w-full justify-center">
-                      <LogOut size={14} /> Request Withdrawal
+                    <button
+                      onClick={() => isOpen && setTarget(r)}
+                      disabled={!isOpen}
+                      title={!isOpen ? "The withdrawal deadline has passed" : "Request withdrawal"}
+                      className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/60 w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <LogOut size={14} /> {isOpen ? "Request Withdrawal" : "Deadline passed"}
                     </button>
                   </motion.div>
                 ))}

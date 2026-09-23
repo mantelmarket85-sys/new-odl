@@ -506,7 +506,10 @@ function round2(value) {
 
 function weightedFromRaw(obtained, total, weight) {
   if (obtained == null || total == null || Number(total) <= 0) return null;
-  return round2((Number(obtained) / Number(total)) * Number(weight || 0));
+  const cap = Number(weight) || 0;
+  const converted = (Number(obtained) / Number(total)) * cap;
+  // Never exceed the item's own weight share (e.g. 10/20 with 5% → 2.5, max 5).
+  return round2(Math.min(Math.max(converted, 0), cap));
 }
 
 function configuredItemPlan(rawItems, configuredCount, fallbackLabel, categoryWeight, actualItems) {
@@ -524,6 +527,8 @@ function configuredItemPlan(rawItems, configuredCount, fallbackLabel, categoryWe
       label: spec.label || (actual && actual.label) || `${fallbackLabel} ${index + 1}`,
       weight: round2(weight),
       weightedMarks: actual ? weightedFromRaw(actual.obtained, actual.total, weight) : null,
+      obtained: actual && actual.obtained != null ? Number(actual.obtained) : null,
+      total: actual && actual.total != null ? Number(actual.total) : null,
       status: actual && actual.obtained != null ? 'GRADED' : 'PENDING',
     };
   });
@@ -593,13 +598,18 @@ async function buildStudentResultBreakdown(offeringId, studentId, publishedOnly)
   const components = [];
   const appendAggregate = (key, label, componentWeight, marks, max) => {
     if (Number(componentWeight) <= 0) return;
-    const hasMarks = !!result;
+    // Mid/Final default to 0 on a DRAFT CourseResult row. Treat an unentered
+    // 0 as Pending so students never see a blank or a fake zero.
+    const published = !!(result && result.status === 'PUBLISHED');
+    const entered = marks != null && (published || Number(marks) > 0);
     components.push({
       key,
       label,
       weight: round2(componentWeight),
-      weightedMarks: hasMarks ? weightedFromRaw(marks, max, componentWeight) : null,
-      status: hasMarks ? 'GRADED' : 'PENDING',
+      weightedMarks: entered ? weightedFromRaw(marks, max, componentWeight) : null,
+      obtained: entered ? Number(marks) : null,
+      total: max != null ? Number(max) : null,
+      status: entered ? 'GRADED' : 'PENDING',
     });
   };
   const appendPlanned = (key, label, componentWeight, rawItems, configuredCount, actualItems, aggregateMarks, aggregateMax) => {
