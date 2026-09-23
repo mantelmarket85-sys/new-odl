@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/dist/
+
+# Env & secrets
+.env
+**/.env
+.dev.vars
+
+# Prisma local DB (keep schema/migrations, ignore local data)
+backend/prisma/dev.db-journal
+*.db-journal
+
+# Uploads (runtime)
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs & PM2
+*.log
+logs/
+.pm2/
+pids/
+*.pid
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Backups
+*.tar.gz
+*.zip
+*.bak
+backend/prisma/dev.db

@@ -1,0 +1,2448 @@
+/* ============================================================
+   AUST ODL — Premium Design System
+   Editorial typography · Refined shadows · Subtle depth
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- Tokens ---------- */
+:root {
+  --primary: #1e40af;
+  --primary-soft: #2563eb;
+  --primary-dark: #1d4ed8;
+  --primary-50: #eff6ff;
+  --primary-100: #dbeafe;
+
+  --bg-app: #f1f5fb;            /* slightly deeper page bg for stronger card separation */
+  --bg-card: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-subtle: #f1f5f9;         /* deeper subtle to differentiate from cards */
+  --border: #cbd5e1;            /* upgraded contrast (slate-300) */
+  --border-strong: #94a3b8;     /* upgraded strong contrast (slate-400) */
+
+  --text-primary: #0b1426;
+  --text-secondary: #1e293b;    /* darker secondary for crisp readability */
+  --text-muted: #475569;        /* upgraded muted to slate-600 — WCAG AA */
+
+  --shadow-soft: 0 1px 2px rgba(11, 20, 38, 0.06), 0 1px 3px rgba(11, 20, 38, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(11, 20, 38, 0.08), 0 2px 4px -2px rgba(11, 20, 38, 0.05);
+  --shadow-lg: 0 10px 25px -5px rgba(11, 20, 38, 0.10), 0 8px 10px -6px rgba(11, 20, 38, 0.06);
+  --shadow-xl: 0 24px 48px -12px rgba(11, 20, 38, 0.14);
+  --shadow-primary: 0 12px 24px -8px rgba(37, 99, 235, 0.25);
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+}
+
+.dark {
+  --bg-app: #060a16;
+  --bg-card: #0f1729;          /* slightly lighter for better content contrast */
+  --bg-elevated: #18223a;
+  --bg-subtle: #0a1122;
+  --border: #283454;           /* stronger borders in dark mode */
+  --border-strong: #3a4972;
+
+  --text-primary: #f8fafc;     /* brighter for top-tier readability */
+  --text-secondary: #d8e0ec;   /* readable secondary tone */
+  --text-muted: #9aa8c0;       /* readable muted tone (WCAG AA on dark bg) */
+
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.55);
+  --shadow-primary: 0 12px 28px -8px rgba(59, 130, 246, 0.35);
+}
+
+* { box-sizing: border-box; }
+
+/* ---------- Base typography ---------- */
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color: var(--text-primary);
+  background: var(--bg-app);
+  letter-spacing: -0.005em;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+body {
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+/* Editorial headings */
+h1, h2, h3, h4, .font-display {
+  font-family: 'Sora', 'Plus Jakarta Sans', system-ui, sans-serif;
+  letter-spacing: -0.022em;
+  line-height: 1.18;
+  font-weight: 700;
+}
+h1 { letter-spacing: -0.028em; }
+
+/* Numeric data alignment */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Mono */
+.font-mono, code, kbd, pre {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: "calt", "ss01";
+}
+
+/* ---------- Selection ---------- */
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+  color: var(--text-primary);
+}
+
+/* ---------- Custom scrollbar ---------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #cbd5e1, #94a3b8);
+  border-radius: 8px;
+  border: 2px solid var(--bg-app);
+}
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #94a3b8, #64748b); }
+.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #1f2a44, #2a3858);
+  border-color: var(--bg-app);
+}
+.dark ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #2a3858, #364672); }
+
+/* ---------- Glassmorphism ---------- */
+.glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+}
+.dark .glass {
+  background: rgba(13, 20, 36, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+.glass-dark {
+  background: rgba(6, 10, 22, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* ---------- Theme-aware utilities ---------- */
+.surface { background: var(--bg-card); border-color: var(--border); color: var(--text-primary); }
+.surface-elevated { background: var(--bg-elevated); border-color: var(--border); }
+.surface-subtle { background: var(--bg-subtle); border-color: var(--border); }
+.text-app { color: var(--text-primary); }
+.text-muted-app { color: var(--text-muted); }
+.text-secondary-app { color: var(--text-secondary); }
+.border-app { border-color: var(--border); }
+.border-strong-app { border-color: var(--border-strong); }
+.bg-app { background: var(--bg-app); }
+
+/* ---------- Card hover lift ---------- */
+.card-hover { transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease; }
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ---------- Gradient text ---------- */
+.gradient-text {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 35%, #0ea5e9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.dark .gradient-text {
+  background: linear-gradient(135deg, #60a5fa 0%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-dark {
+  background: linear-gradient(135deg, #60a5fa 0%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ---------- Gradient borders ---------- */
+.gradient-border {
+  position: relative;
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+}
+.gradient-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9, #8b5cf6);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.gradient-border:hover::before { opacity: 1; }
+
+/* ---------- Sticky notes ---------- */
+.note-yellow { background: linear-gradient(135deg, #fef9c3, #fde68a); }
+.note-pink { background: linear-gradient(135deg, #fce7f3, #fbcfe8); }
+.note-blue { background: linear-gradient(135deg, #dbeafe, #bfdbfe); }
+.note-green { background: linear-gradient(135deg, #d1fae5, #a7f3d0); }
+.note-purple { background: linear-gradient(135deg, #ede9fe, #ddd6fe); }
+.note-orange { background: linear-gradient(135deg, #ffedd5, #fed7aa); }
+
+/* ---------- Skeleton ---------- */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite linear;
+  border-radius: 0.5rem;
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, #1e293b 25%, #283549 50%, #1e293b 75%);
+  background-size: 1000px 100%;
+}
+
+/* ---------- Pulse dot ---------- */
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: inherit;
+  animation: pulse-ring 1.6s infinite ease-out;
+}
+
+/* ---------- Transitions ---------- */
+button, a {
+  transition: color 0.18s ease, background-color 0.18s ease, border-color 0.18s ease,
+              transform 0.18s ease, box-shadow 0.2s ease, opacity 0.18s ease;
+}
+
+/* ---------- Focus rings ---------- */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--primary-soft);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35);
+}
+.dark input, .dark textarea, .dark select {
+  background-color: var(--bg-card);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+.dark input::placeholder, .dark textarea::placeholder { color: #64748b; }
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-1.5 text-white font-semibold px-5 py-2.5 rounded-xl;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  box-shadow: 0 8px 20px -6px rgba(37, 99, 235, 0.45), inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  letter-spacing: -0.005em;
+  transition: transform 0.18s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.btn-primary:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 12px 28px -6px rgba(37, 99, 235, 0.55), inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+.btn-primary:active { transform: translateY(0); }
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-1.5 font-semibold px-5 py-2.5 rounded-xl;
+  background: var(--bg-card);
+  color: var(--primary);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  transition: all 0.18s ease;
+}
+.btn-secondary:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.dark .btn-secondary {
+  color: #93c5fd;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-1.5 font-semibold px-4 py-2 rounded-xl;
+  color: var(--text-secondary);
+  transition: all 0.18s ease;
+}
+.btn-ghost:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
+.dark .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ---------- Inputs ---------- */
+.input-base {
+  @apply w-full px-4 py-2.5 rounded-xl text-sm;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.input-base::placeholder { color: var(--text-muted); }
+.input-base:focus {
+  border-color: var(--primary-soft);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+}
+
+/* ---------- Cards ---------- */
+/* NOTE: use background-color (not background shorthand) so Tailwind's
+   bg-gradient-to-* utilities can layer their `background-image` on top
+   without being wiped out by `background: <color>` resetting bg-image to none. */
+.card-base {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  transition: border-color 0.2s ease, box-shadow 0.25s ease;
+}
+.card-base:hover {
+  border-color: var(--border-strong);
+}
+.dark .card-base {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, var(--shadow-soft);
+}
+
+/* Elevated premium card */
+.card-premium {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+.card-premium::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.7), transparent 30%);
+  pointer-events: none;
+  opacity: 0.6;
+}
+.dark .card-premium::before {
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), transparent 30%);
+}
+
+/* ---------- Utility classes ---------- */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---------- Mesh gradient ---------- */
+.bg-mesh {
+  background-image:
+    radial-gradient(at 18% 22%, rgba(59, 130, 246, 0.14) 0px, transparent 50%),
+    radial-gradient(at 82% 4%, rgba(14, 165, 233, 0.12) 0px, transparent 50%),
+    radial-gradient(at 78% 82%, rgba(139, 92, 246, 0.11) 0px, transparent 50%),
+    radial-gradient(at 4% 98%, rgba(16, 185, 129, 0.08) 0px, transparent 50%);
+}
+.dark .bg-mesh {
+  background-image:
+    radial-gradient(at 18% 22%, rgba(59, 130, 246, 0.18) 0px, transparent 50%),
+    radial-gradient(at 82% 4%, rgba(14, 165, 233, 0.12) 0px, transparent 50%),
+    radial-gradient(at 78% 82%, rgba(139, 92, 246, 0.16) 0px, transparent 50%);
+}
+
+/* Premium ambient orbs */
+.bg-orbs {
+  position: relative;
+}
+.bg-orbs::before, .bg-orbs::after {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 0;
+}
+.bg-orbs::before {
+  width: 380px; height: 380px;
+  background: radial-gradient(circle, #2563eb, transparent 60%);
+  top: -120px; left: -120px;
+}
+.bg-orbs::after {
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, #8b5cf6, transparent 60%);
+  bottom: -100px; right: -100px;
+}
+
+/* ---------- Smooth page enter ---------- */
+@keyframes page-enter {
+  0% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.page-enter { animation: page-enter 0.4s cubic-bezier(0.4, 0, 0.2, 1) both; }
+
+/* Floating animation for hero illustrations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-12px); }
+}
+.float { animation: float 6s ease-in-out infinite; }
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(3deg); }
+}
+.float-slow { animation: float-slow 8s ease-in-out infinite; }
+
+/* Subtle background grid for hero sections */
+.bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+.dark .bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
+
+/* ---------- Recharts dark theme ---------- */
+.dark .recharts-cartesian-grid line { stroke: #1a2540; }
+.dark .recharts-text { fill: #7c8aa3; }
+.dark .recharts-default-tooltip {
+  background: #0d1424 !important;
+  border-color: #1a2540 !important;
+  color: #f1f5f9 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ---------- Typography helpers ---------- */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+}
+.heading-1 {
+  font-family: 'Sora', system-ui, sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  letter-spacing: -0.028em;
+  line-height: 1.1;
+}
+.heading-2 {
+  font-family: 'Sora', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.022em;
+  line-height: 1.18;
+}
+
+/* ---------- Subtle ring divider ---------- */
+.ring-divider {
+  background: linear-gradient(90deg, transparent, var(--border) 20%, var(--border) 80%, transparent);
+  height: 1px;
+}
+
+/* Smooth disclosure */
+details > summary { list-style: none; cursor: pointer; }
+details > summary::-webkit-details-marker { display: none; }
+
+/* ============================================================
+   GLOBAL VISIBILITY / CONTRAST FIXES
+   These rules ensure consistent readability across BOTH themes
+   without redesigning the UI. They map hardcoded Tailwind colors
+   (bg-white, bg-slate-50, border-slate-100, text-slate-{500..900})
+   to theme-aware equivalents inside .dark mode only — light mode
+   keeps its existing appearance untouched.
+   ============================================================ */
+
+/* --- Light mode subtle contrast boosts (does not change layout) --- */
+:not(.dark) .text-slate-300 { color: #64748b; }      /* very faint -> readable muted */
+:not(.dark) .text-slate-400 { color: #475569; }      /* faint -> slate-600 */
+:not(.dark) .text-slate-500 { color: #334155; }      /* light secondary -> slate-700 */
+:not(.dark) .text-slate-600 { color: #1e293b; }      /* secondary -> slate-800 */
+
+/* Inputs / placeholders always WCAG AA in light mode */
+:not(.dark) input,
+:not(.dark) textarea,
+:not(.dark) select {
+  color: #0b1426;
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+}
+:not(.dark) input::placeholder,
+:not(.dark) textarea::placeholder { color: #64748b; opacity: 1; }
+:not(.dark) input:focus,
+:not(.dark) textarea:focus,
+:not(.dark) select:focus { border-color: #2563eb; }
+
+/* Light mode — boost generic borders that were near-invisible (slate-100/150/200) */
+:not(.dark) .border-slate-100 { border-color: #e2e8f0; }
+:not(.dark) .border-slate-200 { border-color: #cbd5e1; }
+:not(.dark) .divide-slate-100 > * + * { border-color: #e2e8f0; }
+:not(.dark) .divide-slate-200 > * + * { border-color: #cbd5e1; }
+
+/* Light mode — pastel badge text contrast hardening (some -600/-700 were faded) */
+:not(.dark) .text-emerald-600 { color: #047857; }
+:not(.dark) .text-emerald-700 { color: #065f46; }
+:not(.dark) .text-amber-600   { color: #b45309; }
+:not(.dark) .text-amber-700   { color: #92400e; }
+:not(.dark) .text-rose-600    { color: #be123c; }
+:not(.dark) .text-rose-700    { color: #9f1239; }
+:not(.dark) .text-blue-600    { color: #1d4ed8; }
+:not(.dark) .text-blue-700    { color: #1e40af; }
+:not(.dark) .text-primary-600 { color: #1d4ed8; }
+:not(.dark) .text-primary-700 { color: #1e40af; }
+:not(.dark) .text-violet-600  { color: #6d28d9; }
+:not(.dark) .text-violet-700  { color: #5b21b6; }
+:not(.dark) .text-purple-600  { color: #7e22ce; }
+:not(.dark) .text-purple-700  { color: #6b21a8; }
+:not(.dark) .text-cyan-600    { color: #0891b2; }
+:not(.dark) .text-cyan-700    { color: #0e7490; }
+:not(.dark) .text-pink-600    { color: #be185d; }
+:not(.dark) .text-pink-700    { color: #9d174d; }
+:not(.dark) .text-orange-600  { color: #c2410c; }
+:not(.dark) .text-orange-700  { color: #9a3412; }
+:not(.dark) .text-teal-600    { color: #0f766e; }
+:not(.dark) .text-teal-700    { color: #115e59; }
+:not(.dark) .text-indigo-600  { color: #4338ca; }
+:not(.dark) .text-indigo-700  { color: #3730a3; }
+
+/* Light mode — soften pastel chip bgs that washed out on white cards */
+:not(.dark) .bg-slate-50  { background-color: #f8fafc; }
+:not(.dark) .bg-slate-100 { background-color: #f1f5f9; }
+:not(.dark) .bg-slate-200 { background-color: #e2e8f0; }
+
+/* Light mode — card / surface clarity: a hint of border so cards on white pages don't blur */
+:not(.dark) .card-base    { border-color: #e2e8f0; }
+:not(.dark) .card-premium { border-color: #cbd5e1; }
+:not(.dark) .card-base:hover { border-color: #94a3b8; }
+
+/* Light mode — table header & rows */
+:not(.dark) thead tr.bg-slate-50 th { color: #334155; }
+:not(.dark) tbody tr { color: #0b1426; }
+
+/* Light mode — buttons that pull color from theme tokens stay readable */
+:not(.dark) .btn-secondary { color: #1e40af; border-color: #cbd5e1; }
+:not(.dark) .btn-secondary:hover { border-color: #94a3b8; background: #f1f5f9; }
+:not(.dark) .btn-ghost { color: #334155; }
+:not(.dark) .btn-ghost:hover { background: #f1f5f9; color: #0b1426; }
+
+/* Light mode — focus rings stay visible */
+:not(.dark) button:focus-visible { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35); }
+
+/* Light mode — semantic muted utility class (.text-muted-app) reliably readable */
+:not(.dark) .text-muted-app { color: #475569 !important; }
+:not(.dark) .text-secondary-app { color: #1e293b !important; }
+
+/* Light mode — dropdown / popover surfaces over hero gradients */
+:not(.dark) .card-base.shadow-2xl { border-color: #cbd5e1; }
+
+/* Light mode — segmented controls / pill toggles using slate-100 bg */
+:not(.dark) .bg-slate-100.text-slate-700,
+:not(.dark) button.bg-slate-100 { color: #1e293b; }
+
+/* Light mode — icon-only buttons that used text-slate-400/500 */
+:not(.dark) button .lucide,
+:not(.dark) a .lucide { color: inherit; }
+
+/* Light mode — gradient hero overlays keep contrast for text/icons */
+:not(.dark) .bg-gradient-to-br.from-blue-700 .text-white,
+:not(.dark) .bg-gradient-to-br.from-indigo-700 .text-white,
+:not(.dark) .bg-gradient-to-br.from-purple-800 .text-white,
+:not(.dark) .bg-gradient-to-r.from-primary-600 .text-white { color: #ffffff; }
+
+/* Light mode — sidebar / nav muted items read clearly on hover */
+:not(.dark) .text-slate-500.hover\:text-primary-700:hover { color: #1d4ed8; }
+:not(.dark) .hover\:bg-slate-50:hover { background-color: #f1f5f9; }
+:not(.dark) .hover\:bg-slate-100:hover { background-color: #e2e8f0; }
+
+/* Light mode — modal/overlay dim doesn't make underlying text fade */
+:not(.dark) .ring-1.ring-slate-200 { --tw-ring-color: #cbd5e1; }
+
+/* --- Dark mode: remap hardcoded bg-white surfaces --- */
+.dark .bg-white { background-color: var(--bg-card) !important; color: var(--text-primary); }
+.dark .bg-white\/80 { background-color: rgba(15, 23, 41, 0.85) !important; }
+.dark .bg-white\/70 { background-color: rgba(15, 23, 41, 0.78) !important; }
+.dark .bg-white\/60 { background-color: rgba(15, 23, 41, 0.65) !important; }
+.dark .bg-white\/50 { background-color: rgba(15, 23, 41, 0.55) !important; }
+.dark .bg-white\/40 { background-color: rgba(15, 23, 41, 0.45) !important; }
+.dark .bg-white\/30 { background-color: rgba(15, 23, 41, 0.35) !important; }
+/* Keep transparent overlays (used on dark gradient hero banners) untouched */
+.dark .bg-white\/5,
+.dark .bg-white\/10,
+.dark .bg-white\/15,
+.dark .bg-white\/20,
+.dark .bg-white\/25 { background-color: rgba(255, 255, 255, var(--tw-bg-opacity, 0.1)) !important; }
+
+/* Hero-overlay text that explicitly sits on dark gradient banners */
+.dark .bg-gradient-to-br.from-slate-900 .text-white,
+.dark .bg-gradient-to-br.from-blue-900 .text-white,
+.dark .bg-gradient-to-br.from-primary-600 .text-white,
+.dark .bg-gradient-to-r.from-primary-600 .text-white { color: #ffffff !important; }
+
+/* --- Dark mode: remap slate-50/slate-100 backgrounds (subtle) --- */
+.dark .bg-slate-50 { background-color: var(--bg-subtle) !important; }
+.dark .bg-slate-100 { background-color: var(--bg-subtle) !important; }
+.dark .bg-slate-100\/80,
+.dark .bg-slate-100\/60 { background-color: rgba(15, 23, 41, 0.6) !important; }
+
+/* --- Dark mode: borders --- */
+.dark .border-slate-100 { border-color: var(--border) !important; }
+.dark .border-slate-200 { border-color: var(--border) !important; }
+.dark .divide-slate-100 > * + * { border-color: var(--border) !important; }
+.dark .divide-slate-200 > * + * { border-color: var(--border) !important; }
+
+/* --- Dark mode: text — make sure hardcoded slate texts are readable --- */
+.dark .text-slate-900 { color: var(--text-primary) !important; }
+.dark .text-slate-800 { color: var(--text-primary) !important; }
+.dark .text-slate-700 { color: var(--text-secondary) !important; }
+.dark .text-slate-600 { color: var(--text-secondary) !important; }
+.dark .text-slate-500 { color: var(--text-muted) !important; }
+.dark .text-slate-400 { color: var(--text-muted) !important; }
+
+/* But preserve dark-toned text intentionally placed on light/colored backgrounds
+   (gradient banners, badges, etc.) — these have their own bg context */
+.dark .bg-rose-100 .text-rose-700,
+.dark .bg-emerald-100 .text-emerald-700,
+.dark .bg-amber-100 .text-amber-700,
+.dark .bg-blue-100 .text-blue-700,
+.dark .bg-purple-100 .text-purple-700,
+.dark .bg-cyan-100 .text-cyan-700,
+.dark .bg-violet-100 .text-violet-700 { /* keep original tinted text */ }
+
+/* --- Dark mode: table heads --- */
+.dark thead tr.bg-slate-50 { background-color: rgba(255, 255, 255, 0.03) !important; }
+.dark thead tr.bg-slate-50 th { color: var(--text-secondary); }
+
+/* --- Dark mode: hover rows --- */
+.dark .hover\:bg-slate-50:hover { background-color: rgba(255, 255, 255, 0.03) !important; }
+.dark .hover\:bg-slate-100:hover { background-color: rgba(255, 255, 255, 0.05) !important; }
+
+/* --- Inputs / selects: always readable --- */
+input, textarea, select {
+  color: var(--text-primary);
+  background-color: var(--bg-card);
+}
+input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
+.dark input, .dark textarea, .dark select {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-card) !important;
+  border-color: var(--border);
+}
+.dark input::placeholder, .dark textarea::placeholder { color: #94a3b8 !important; opacity: 1; }
+.dark select option { background-color: var(--bg-card); color: var(--text-primary); }
+
+/* Override any pl-9 input that hardcodes bg-white */
+.dark input.bg-white,
+.dark textarea.bg-white,
+.dark select.bg-white { background-color: var(--bg-card) !important; }
+
+/* --- Buttons that hardcode light tones --- */
+.dark .bg-slate-100.text-slate-700,
+.dark button.bg-slate-100 { background-color: rgba(255, 255, 255, 0.05) !important; color: var(--text-secondary) !important; }
+
+/* --- Cards: ensure border visible in dark --- */
+.dark .card-base, .dark .card-premium {
+  border-color: var(--border);
+}
+
+/* --- Pastel badges: improve contrast in dark mode --- */
+.dark .bg-emerald-100 { background-color: rgba(16, 185, 129, 0.15) !important; }
+.dark .bg-rose-100 { background-color: rgba(244, 63, 94, 0.15) !important; }
+.dark .bg-amber-100 { background-color: rgba(245, 158, 11, 0.15) !important; }
+.dark .bg-blue-100 { background-color: rgba(59, 130, 246, 0.15) !important; }
+.dark .bg-primary-100 { background-color: rgba(37, 99, 235, 0.18) !important; }
+.dark .bg-purple-100 { background-color: rgba(168, 85, 247, 0.15) !important; }
+.dark .bg-cyan-100 { background-color: rgba(14, 165, 233, 0.15) !important; }
+.dark .bg-violet-100 { background-color: rgba(139, 92, 246, 0.15) !important; }
+.dark .bg-pink-100 { background-color: rgba(236, 72, 153, 0.15) !important; }
+.dark .bg-orange-100 { background-color: rgba(249, 115, 22, 0.15) !important; }
+.dark .bg-green-100 { background-color: rgba(34, 197, 94, 0.15) !important; }
+
+.dark .text-emerald-700 { color: #6ee7b7 !important; }
+.dark .text-rose-700 { color: #fda4af !important; }
+.dark .text-rose-600 { color: #fb7185 !important; }
+.dark .text-amber-700 { color: #fcd34d !important; }
+.dark .text-blue-700 { color: #93c5fd !important; }
+.dark .text-primary-700 { color: #93c5fd !important; }
+.dark .text-primary-600 { color: #93c5fd !important; }
+.dark .text-purple-700 { color: #d8b4fe !important; }
+.dark .text-cyan-700 { color: #67e8f9 !important; }
+.dark .text-violet-700 { color: #c4b5fd !important; }
+.dark .text-pink-700 { color: #fbcfe8 !important; }
+.dark .text-orange-700 { color: #fdba74 !important; }
+.dark .text-green-700 { color: #86efac !important; }
+
+/* --- Modal / dropdown surfaces --- */
+.dark .ring-1.ring-slate-200 { --tw-ring-color: var(--border) !important; }
+
+/* --- Tab/segment pills using bg-slate-100 --- */
+.dark .bg-slate-200 { background-color: rgba(255, 255, 255, 0.06) !important; }
+
+/* --- Hover/active states on sidebar/menu in light keep AA contrast --- */
+:not(.dark) .text-slate-500.hover\:text-primary-700:hover { color: #1d4ed8; }
+
+/* --- Strengthen focus visibility (both modes) --- */
+*:focus-visible {
+  outline-offset: 2px;
+}
+
+/* --- Disabled controls keep readable text --- */
+button:disabled, input:disabled, select:disabled, textarea:disabled {
+  opacity: 0.65;
+}
+
+/* --- Ensure semantic muted utilities also follow theme --- */
+.text-app { color: var(--text-primary) !important; }
+.text-muted-app { color: var(--text-muted) !important; }
+.text-secondary-app { color: var(--text-secondary) !important; }
+
+/* --- Sticky notes contrast (text always dark on pastel) --- */
+.note-yellow, .note-pink, .note-blue, .note-green, .note-purple, .note-orange { color: #1e293b; }
+.dark .note-yellow, .dark .note-pink, .dark .note-blue,
+.dark .note-green, .dark .note-purple, .dark .note-orange { color: #1e293b; }
+
+/* --- Recharts axis text in light mode --- */
+:not(.dark) .recharts-text { fill: #475569; }
+
+/* --- Tooltips / popovers --- */
+.dark .recharts-default-tooltip {
+  background: var(--bg-elevated) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ============================================================
+   3D Educational Visual Elements — Lightweight CSS-only
+   ============================================================ */
+@keyframes edu-float-y {
+  0%, 100% { transform: translateY(0) rotate(var(--rot, 0deg)); }
+  50% { transform: translateY(-14px) rotate(var(--rot, 0deg)); }
+}
+@keyframes edu-float-x {
+  0%, 100% { transform: translateX(0) rotate(var(--rot, 0deg)); }
+  50% { transform: translateX(10px) rotate(var(--rot, 0deg)); }
+}
+@keyframes edu-spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.edu-float { animation: edu-float-y 7s ease-in-out infinite; }
+.edu-float-x { animation: edu-float-x 9s ease-in-out infinite; }
+.edu-spin-slow { animation: edu-spin-slow 26s linear infinite; }
+
+/* 3D book base */
+.edu-3d-book {
+  position: relative;
+  width: 64px;
+  height: 80px;
+  perspective: 600px;
+  transform-style: preserve-3d;
+}
+.edu-3d-book .cover {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px 10px 10px 6px;
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow:
+    inset 6px 0 0 rgba(255, 255, 255, 0.15),
+    inset -2px 0 0 rgba(0, 0, 0, 0.18),
+    0 14px 30px -10px rgba(37, 99, 235, 0.55);
+  transform: rotateY(-12deg);
+}
+.edu-3d-book .pages {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  right: 2px;
+  width: 6px;
+  background: linear-gradient(180deg, #fef3c7, #fde68a 25%, #fef3c7 50%, #fde68a 75%, #fef3c7);
+  border-radius: 0 4px 4px 0;
+  transform: rotateY(-12deg) translateZ(1px);
+}
+.edu-3d-book.alt .cover { background: linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%); }
+.edu-3d-book.green .cover { background: linear-gradient(135deg, #10b981 0%, #047857 100%); }
+.edu-3d-book.violet .cover { background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); }
+.edu-3d-book.amber .cover { background: linear-gradient(135deg, #f59e0b 0%, #b45309 100%); }
+
+/* 3D graduation cap */
+.edu-3d-cap {
+  position: relative;
+  width: 80px;
+  height: 60px;
+}
+.edu-3d-cap .board {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 80px;
+  height: 18px;
+  transform: translateX(-50%) rotateX(60deg);
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  border-radius: 4px;
+  box-shadow: 0 8px 18px -6px rgba(15, 23, 42, 0.55);
+}
+.edu-3d-cap .base {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  width: 36px;
+  height: 22px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+  border-radius: 3px 3px 14px 14px;
+}
+.edu-3d-cap .tassel {
+  position: absolute;
+  top: 14px;
+  left: 60%;
+  width: 2px;
+  height: 22px;
+  background: #f59e0b;
+  border-radius: 2px;
+}
+.edu-3d-cap .tassel::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  background: radial-gradient(circle, #fbbf24, #d97706);
+  border-radius: 50%;
+}
+
+/* Floating soft glow sphere */
+.edu-3d-sphere {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #93c5fd 0%, #3b82f6 45%, #1d4ed8 90%);
+  box-shadow:
+    inset 6px 6px 14px rgba(255, 255, 255, 0.35),
+    inset -8px -8px 18px rgba(0, 0, 0, 0.25),
+    0 18px 30px -10px rgba(37, 99, 235, 0.5);
+}
+.edu-3d-sphere.violet { background: radial-gradient(circle at 30% 25%, #c4b5fd, #8b5cf6 45%, #6d28d9 90%); box-shadow: inset 6px 6px 14px rgba(255,255,255,0.35), inset -8px -8px 18px rgba(0,0,0,0.25), 0 18px 30px -10px rgba(139,92,246,0.5); }
+.edu-3d-sphere.cyan { background: radial-gradient(circle at 30% 25%, #67e8f9, #06b6d4 45%, #0e7490 90%); box-shadow: inset 6px 6px 14px rgba(255,255,255,0.35), inset -8px -8px 18px rgba(0,0,0,0.25), 0 18px 30px -10px rgba(6,182,212,0.5); }
+.edu-3d-sphere.amber { background: radial-gradient(circle at 30% 25%, #fde68a, #f59e0b 45%, #b45309 90%); box-shadow: inset 6px 6px 14px rgba(255,255,255,0.35), inset -8px -8px 18px rgba(0,0,0,0.25), 0 18px 30px -10px rgba(245,158,11,0.5); }
+.edu-3d-sphere.emerald { background: radial-gradient(circle at 30% 25%, #6ee7b7, #10b981 45%, #047857 90%); box-shadow: inset 6px 6px 14px rgba(255,255,255,0.35), inset -8px -8px 18px rgba(0,0,0,0.25), 0 18px 30px -10px rgba(16,185,129,0.5); }
+
+/* Atom-style ring */
+.edu-3d-atom {
+  position: relative;
+  width: 90px;
+  height: 90px;
+}
+.edu-3d-atom::before,
+.edu-3d-atom::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(37, 99, 235, 0.55);
+}
+.edu-3d-atom::before { transform: rotate(60deg) scaleY(0.4); }
+.edu-3d-atom::after { transform: rotate(-60deg) scaleY(0.4); border-color: rgba(14, 165, 233, 0.55); }
+.edu-3d-atom .nucleus {
+  position: absolute;
+  inset: 35% 35%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #fbbf24, #b45309);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.6);
+}
+
+/* Soft halo behind decorative elements */
+.edu-halo {
+  position: absolute;
+  inset: -30%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.18), transparent 60%);
+  filter: blur(20px);
+  z-index: -1;
+}
+.dark .edu-halo { background: radial-gradient(circle, rgba(59, 130, 246, 0.25), transparent 60%); }
+
+/* Container that hosts 3D visuals — positioned absolute usually */
+.edu-3d-stage {
+  position: relative;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ============================================================
+   Edu3DCharacter — animated 3D educational character with book
+   ============================================================ */
+.edu-3d-character {
+  --char-skin: #f8d3b4;
+  --char-skin-dark: #e3b594;
+  --char-robe: #6d28d9;
+  --char-robe-dark: #4c1d95;
+  --char-robe-light: #8b5cf6;
+  --char-accent: #fbbf24;
+  --char-book: #f59e0b;
+  --char-book-dark: #b45309;
+  --char-book-page: #fffbeb;
+  --char-glow: rgba(139, 92, 246, 0.45);
+  position: absolute;
+  width: 150px;
+  height: 175px;
+  pointer-events: none;
+  transform-style: preserve-3d;
+  perspective: 900px;
+  animation: edu-char-float 4.5s ease-in-out infinite;
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.18));
+}
+.edu-3d-character--emerald {
+  --char-robe: #047857;
+  --char-robe-dark: #064e3b;
+  --char-robe-light: #10b981;
+  --char-accent: #fde68a;
+  --char-glow: rgba(16, 185, 129, 0.45);
+}
+.edu-3d-character--cyan {
+  --char-robe: #0e7490;
+  --char-robe-dark: #155e75;
+  --char-robe-light: #22d3ee;
+  --char-accent: #fef08a;
+  --char-glow: rgba(34, 211, 238, 0.45);
+}
+.edu-3d-character--amber {
+  --char-robe: #b45309;
+  --char-robe-dark: #78350f;
+  --char-robe-light: #f59e0b;
+  --char-accent: #fef3c7;
+  --char-glow: rgba(245, 158, 11, 0.45);
+}
+
+/* glow ring behind character */
+.edu-char-halo {
+  position: absolute;
+  inset: -10% -8% auto -8%;
+  height: 75%;
+  background: radial-gradient(ellipse at center, var(--char-glow) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(6px);
+  animation: edu-char-halo-pulse 3.6s ease-in-out infinite;
+  z-index: 0;
+}
+@keyframes edu-char-halo-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.95; transform: scale(1.07); }
+}
+
+.edu-char-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  animation: edu-char-sway 5s ease-in-out infinite;
+  z-index: 1;
+}
+
+/* HEAD */
+.edu-char-head {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 52px;
+  height: 56px;
+  transform: translateX(-50%);
+  background: linear-gradient(160deg, var(--char-skin) 0%, var(--char-skin-dark) 100%);
+  border-radius: 46% 46% 42% 42% / 52% 52% 48% 48%;
+  box-shadow:
+    inset -4px -4px 8px rgba(0,0,0,0.12),
+    inset 3px 3px 6px rgba(255,255,255,0.45);
+  z-index: 3;
+}
+/* graduation cap */
+.edu-char-cap {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  width: 70px;
+  height: 22px;
+  transform: translateX(-50%);
+}
+.edu-char-cap .cap-base {
+  position: absolute;
+  top: 10px;
+  left: 14px;
+  width: 42px;
+  height: 12px;
+  background: linear-gradient(180deg, #1e293b, #0f172a);
+  border-radius: 50% 50% 40% 40% / 60% 60% 40% 40%;
+  box-shadow: inset 0 -2px 3px rgba(255,255,255,0.15);
+}
+.edu-char-cap .cap-board {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 70px;
+  height: 14px;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #0f172a 100%);
+  border-radius: 4px;
+  transform: perspective(140px) rotateX(46deg);
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+}
+.edu-char-cap .cap-tassel {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 4px;
+  height: 16px;
+  background: linear-gradient(180deg, var(--char-accent), #b45309);
+  border-radius: 4px;
+  transform-origin: top center;
+  animation: edu-char-tassel 3.2s ease-in-out infinite;
+}
+@keyframes edu-char-tassel {
+  0%, 100% { transform: rotate(-10deg); }
+  50%      { transform: rotate(12deg); }
+}
+
+/* FACE */
+.edu-char-face {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+.edu-char-face .eye {
+  position: absolute;
+  top: 22px;
+  width: 5px;
+  height: 7px;
+  background: #1e293b;
+  border-radius: 50%;
+  animation: edu-char-blink 4s infinite;
+}
+.edu-char-face .eye.left  { left: 14px; }
+.edu-char-face .eye.right { right: 14px; }
+@keyframes edu-char-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  96%           { transform: scaleY(0.1); }
+}
+.edu-char-face .smile {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 8px;
+  border: 2px solid #1e293b;
+  border-top: 0;
+  border-radius: 0 0 16px 16px;
+}
+
+/* TORSO */
+.edu-char-torso {
+  position: absolute;
+  top: 56px;
+  left: 50%;
+  width: 88px;
+  height: 90px;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(165deg, var(--char-robe-light) 0%, var(--char-robe) 55%, var(--char-robe-dark) 100%);
+  border-radius: 18px 18px 28px 28px / 24px 24px 32px 32px;
+  box-shadow:
+    inset -6px -8px 12px rgba(0,0,0,0.22),
+    inset 4px 4px 8px rgba(255,255,255,0.16),
+    0 6px 12px rgba(0,0,0,0.15);
+  z-index: 1;
+}
+.edu-char-torso .collar {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  width: 30px;
+  height: 14px;
+  transform: translateX(-50%);
+  background: var(--char-skin);
+  clip-path: polygon(0 0, 100% 0, 75% 100%, 25% 100%);
+}
+.edu-char-torso .tie {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 8px;
+  height: 26px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, var(--char-accent), #b45309);
+  clip-path: polygon(20% 0, 80% 0, 100% 100%, 50% 85%, 0 100%);
+}
+
+/* ARMS */
+.edu-char-arm {
+  position: absolute;
+  top: 68px;
+  width: 22px;
+  height: 56px;
+  background: linear-gradient(160deg, var(--char-robe-light), var(--char-robe-dark));
+  border-radius: 12px;
+  box-shadow: inset -3px -3px 6px rgba(0,0,0,0.18);
+  z-index: 4;
+}
+.edu-char-arm.left {
+  left: 8px;
+  transform: rotate(28deg);
+  transform-origin: top right;
+  animation: edu-char-arm-left 4.5s ease-in-out infinite;
+}
+.edu-char-arm.right {
+  right: 8px;
+  transform: rotate(-28deg);
+  transform-origin: top left;
+  animation: edu-char-arm-right 4.5s ease-in-out infinite;
+}
+@keyframes edu-char-arm-left {
+  0%, 100% { transform: rotate(28deg); }
+  50%      { transform: rotate(22deg); }
+}
+@keyframes edu-char-arm-right {
+  0%, 100% { transform: rotate(-28deg); }
+  50%      { transform: rotate(-22deg); }
+}
+
+/* BOOK held in front of character */
+.edu-char-book {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  width: 88px;
+  height: 50px;
+  transform: translateX(-50%) perspective(420px) rotateX(28deg);
+  transform-style: preserve-3d;
+  z-index: 5;
+  animation: edu-char-book-bob 4.5s ease-in-out infinite;
+  filter: drop-shadow(0 6px 8px rgba(0,0,0,0.22));
+}
+.edu-char-book .book-spine {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 6px;
+  height: 100%;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, var(--char-book), var(--char-book-dark));
+  border-radius: 2px;
+  z-index: 2;
+}
+.edu-char-book .book-page {
+  position: absolute;
+  top: 2px;
+  width: 44px;
+  height: 46px;
+  background: linear-gradient(160deg, var(--char-book-page) 0%, #fde68a 100%);
+  box-shadow:
+    inset 0 0 8px rgba(180,83,9,0.18),
+    0 2px 4px rgba(0,0,0,0.12);
+}
+.edu-char-book .book-page.left {
+  left: 0;
+  border-radius: 4px 0 0 4px;
+  transform-origin: right center;
+  animation: edu-char-page-left 4.5s ease-in-out infinite;
+}
+.edu-char-book .book-page.right {
+  right: 0;
+  border-radius: 0 4px 4px 0;
+  transform-origin: left center;
+  animation: edu-char-page-right 4.5s ease-in-out infinite;
+}
+@keyframes edu-char-page-left {
+  0%, 100% { transform: rotateY(-3deg); }
+  50%      { transform: rotateY(-9deg); }
+}
+@keyframes edu-char-page-right {
+  0%, 100% { transform: rotateY(3deg); }
+  50%      { transform: rotateY(9deg); }
+}
+.edu-char-book .book-line {
+  position: absolute;
+  height: 2px;
+  background: rgba(180,83,9,0.45);
+  border-radius: 1px;
+  z-index: 3;
+}
+.edu-char-book .book-line.l1 { top: 14px; left: 6px; width: 32px; }
+.edu-char-book .book-line.l2 { top: 22px; left: 6px; width: 26px; }
+.edu-char-book .book-line.l3 { top: 14px; right: 6px; width: 30px; }
+.edu-char-book .book-sparkle {
+  position: absolute;
+  top: -10px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  background: var(--char-accent);
+  border-radius: 50%;
+  box-shadow:
+    0 0 8px var(--char-accent),
+    -16px 4px 0 -2px var(--char-accent),
+    -28px -2px 0 -4px var(--char-accent);
+  animation: edu-char-sparkle 2.4s ease-in-out infinite;
+}
+@keyframes edu-char-sparkle {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50%      { opacity: 1;   transform: scale(1.15); }
+}
+
+@keyframes edu-char-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+@keyframes edu-char-sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50%      { transform: rotate(1.2deg); }
+}
+@keyframes edu-char-book-bob {
+  0%, 100% { transform: translateX(-50%) perspective(420px) rotateX(28deg) translateY(0); }
+  50%      { transform: translateX(-50%) perspective(420px) rotateX(26deg) translateY(-3px); }
+}
+
+/* Dark mode tweaks */
+.dark .edu-3d-character { filter: drop-shadow(0 18px 26px rgba(0,0,0,0.55)); }
+.dark .edu-char-halo    { opacity: 0.7; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .edu-3d-character,
+  .edu-char-body,
+  .edu-char-arm.left,
+  .edu-char-arm.right,
+  .edu-char-book,
+  .edu-char-book .book-page.left,
+  .edu-char-book .book-page.right,
+  .edu-char-cap .cap-tassel,
+  .edu-char-halo,
+  .edu-char-book .book-sparkle,
+  .edu-char-face .eye {
+    animation: none !important;
+  }
+}
+
+/* Make sure scene wrapper doesn't clip the character on small heroes */
+.edu-3d-stage { overflow: visible; }
+
+/* =========================================================================
+   Edu3DCharacter — animated 3D educational character holding an open book.
+   Pure CSS, no images, no external libraries. Decorative; pointer-events:none.
+   ========================================================================= */
+
+.edu-3d-character {
+  position: absolute;
+  width: 150px;
+  height: 180px;
+  pointer-events: none;
+  perspective: 900px;
+  transform-style: preserve-3d;
+  animation: edu-char-float 5.5s ease-in-out infinite;
+  filter: drop-shadow(0 14px 22px rgba(80, 50, 180, 0.25));
+}
+
+.edu-3d-character--violet  { --char-a: #8b5cf6; --char-b: #6d28d9; --char-skin: #fcd9b6; --char-book-a: #f59e0b; --char-book-b: #d97706; }
+.edu-3d-character--emerald { --char-a: #10b981; --char-b: #047857; --char-skin: #fcd9b6; --char-book-a: #06b6d4; --char-book-b: #0891b2; }
+.edu-3d-character--cyan    { --char-a: #06b6d4; --char-b: #0e7490; --char-skin: #fcd9b6; --char-book-a: #8b5cf6; --char-book-b: #6d28d9; }
+.edu-3d-character--amber   { --char-a: #f59e0b; --char-b: #b45309; --char-skin: #fcd9b6; --char-book-a: #10b981; --char-book-b: #047857; }
+
+.edu-char-halo {
+  position: absolute;
+  inset: -16px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--char-a) 35%, transparent) 0%, transparent 70%);
+  filter: blur(14px);
+  animation: edu-char-halo-pulse 4s ease-in-out infinite;
+  z-index: 0;
+}
+
+.edu-char-body {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  z-index: 1;
+}
+
+/* HEAD ------------------------------------------------------------------- */
+.edu-char-head {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 56px;
+  height: 60px;
+  margin-left: -28px;
+  background: linear-gradient(135deg, var(--char-skin) 0%, color-mix(in srgb, var(--char-skin) 75%, #e8a87c) 100%);
+  border-radius: 48% 48% 46% 46% / 55% 55% 45% 45%;
+  box-shadow: inset -6px -4px 10px rgba(0,0,0,0.10), inset 4px 4px 8px rgba(255,255,255,0.5);
+  transform-style: preserve-3d;
+  animation: edu-char-head-tilt 4.5s ease-in-out infinite;
+}
+
+.edu-char-cap {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  width: 70px;
+  height: 22px;
+  margin-left: -35px;
+  transform-style: preserve-3d;
+}
+.cap-board {
+  position: absolute;
+  top: 0; left: 0;
+  width: 70px;
+  height: 12px;
+  background: linear-gradient(135deg, #1f2937 0%, #0f172a 100%);
+  border-radius: 4px;
+  transform: rotateX(60deg);
+  box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+.cap-base {
+  position: absolute;
+  top: 8px; left: 14px;
+  width: 42px;
+  height: 14px;
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  border-radius: 4px 4px 0 0;
+}
+.cap-tassel {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 4px;
+  height: 18px;
+  background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+  border-radius: 2px;
+  transform-origin: top center;
+  animation: edu-char-tassel 2.4s ease-in-out infinite;
+}
+
+.edu-char-face {
+  position: absolute;
+  top: 24px; left: 0;
+  width: 100%;
+  height: 100%;
+}
+.edu-char-face .eye {
+  position: absolute;
+  top: 0;
+  width: 6px;
+  height: 6px;
+  background: #1f2937;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.6);
+  animation: edu-char-blink 4s ease-in-out infinite;
+}
+.edu-char-face .eye.left  { left: 14px; }
+.edu-char-face .eye.right { right: 14px; }
+.edu-char-face .smile {
+  position: absolute;
+  top: 14px; left: 50%;
+  width: 16px;
+  height: 8px;
+  margin-left: -8px;
+  border-bottom: 2px solid #1f2937;
+  border-radius: 0 0 16px 16px;
+}
+
+/* TORSO ------------------------------------------------------------------ */
+.edu-char-torso {
+  position: absolute;
+  top: 62px; left: 50%;
+  width: 74px;
+  height: 70px;
+  margin-left: -37px;
+  background: linear-gradient(135deg, var(--char-a) 0%, var(--char-b) 100%);
+  border-radius: 14px 14px 18px 18px / 12px 12px 28px 28px;
+  box-shadow: inset -8px -6px 16px rgba(0,0,0,0.18), inset 6px 6px 12px rgba(255,255,255,0.18), 0 6px 14px rgba(0,0,0,0.20);
+}
+.collar {
+  position: absolute;
+  top: 0; left: 50%;
+  width: 28px;
+  height: 12px;
+  margin-left: -14px;
+  background: #f8fafc;
+  clip-path: polygon(0 0, 100% 0, 70% 100%, 50% 60%, 30% 100%);
+}
+.tie {
+  position: absolute;
+  top: 6px; left: 50%;
+  width: 8px;
+  height: 22px;
+  margin-left: -4px;
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 100%);
+  clip-path: polygon(20% 0, 80% 0, 100% 30%, 50% 100%, 0 30%);
+}
+
+/* ARMS — positioned to hold the book in front -------------------------- */
+.edu-char-arm {
+  position: absolute;
+  top: 70px;
+  width: 18px;
+  height: 56px;
+  background: linear-gradient(135deg, var(--char-a) 0%, var(--char-b) 100%);
+  border-radius: 12px;
+  box-shadow: inset -3px -2px 6px rgba(0,0,0,0.18);
+  z-index: 2;
+}
+.edu-char-arm.left  { left: 10px;  transform: rotate(28deg);  transform-origin: top center; animation: edu-char-arm-l 5s ease-in-out infinite; }
+.edu-char-arm.right { right: 10px; transform: rotate(-28deg); transform-origin: top center; animation: edu-char-arm-r 5s ease-in-out infinite; }
+
+/* BOOK — held in front of the character ------------------------------- */
+.edu-char-book {
+  position: absolute;
+  top: 96px;
+  left: 50%;
+  width: 88px;
+  height: 60px;
+  margin-left: -44px;
+  transform-style: preserve-3d;
+  z-index: 3;
+  animation: edu-char-book-tilt 5s ease-in-out infinite;
+}
+.book-spine {
+  position: absolute;
+  top: 0; left: 50%;
+  width: 6px;
+  height: 100%;
+  margin-left: -3px;
+  background: linear-gradient(180deg, var(--char-book-b) 0%, color-mix(in srgb, var(--char-book-b) 60%, #000) 100%);
+  border-radius: 2px;
+  z-index: 2;
+}
+.book-page {
+  position: absolute;
+  top: 0;
+  width: 44px;
+  height: 100%;
+  background: linear-gradient(135deg, #fff8ef 0%, #fce8c2 100%);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.22), inset 0 0 8px rgba(0,0,0,0.06);
+}
+.book-page.left {
+  left: 0;
+  border-radius: 6px 0 0 6px;
+  transform: rotateY(-10deg);
+  transform-origin: right center;
+  border-left: 3px solid var(--char-book-a);
+}
+.book-page.right {
+  right: 0;
+  border-radius: 0 6px 6px 0;
+  transform: rotateY(10deg);
+  transform-origin: left center;
+  border-right: 3px solid var(--char-book-a);
+}
+.book-line {
+  position: absolute;
+  height: 2px;
+  background: color-mix(in srgb, var(--char-book-b) 70%, transparent);
+  border-radius: 1px;
+  opacity: 0.55;
+}
+.book-line.l1 { top: 14px; left: 6px;  width: 32px; }
+.book-line.l2 { top: 22px; left: 6px;  width: 26px; }
+.book-line.l3 { top: 30px; left: 50px; width: 30px; }
+.book-sparkle {
+  position: absolute;
+  top: -8px; right: -6px;
+  width: 14px; height: 14px;
+  background: radial-gradient(circle, #fff 0%, var(--char-book-a) 60%, transparent 80%);
+  border-radius: 50%;
+  animation: edu-char-sparkle 2.2s ease-in-out infinite;
+}
+
+/* ANIMATIONS ----------------------------------------------------------- */
+@keyframes edu-char-float {
+  0%, 100% { transform: translateY(0) rotateY(-4deg); }
+  50%      { transform: translateY(-10px) rotateY(4deg); }
+}
+@keyframes edu-char-halo-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.9; transform: scale(1.08); }
+}
+@keyframes edu-char-head-tilt {
+  0%, 100% { transform: rotateZ(-3deg); }
+  50%      { transform: rotateZ(3deg); }
+}
+@keyframes edu-char-tassel {
+  0%, 100% { transform: rotate(-12deg); }
+  50%      { transform: rotate(12deg); }
+}
+@keyframes edu-char-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95%           { transform: scaleY(0.1); }
+}
+@keyframes edu-char-arm-l {
+  0%, 100% { transform: rotate(28deg); }
+  50%      { transform: rotate(24deg); }
+}
+@keyframes edu-char-arm-r {
+  0%, 100% { transform: rotate(-28deg); }
+  50%      { transform: rotate(-24deg); }
+}
+@keyframes edu-char-book-tilt {
+  0%, 100% { transform: translateY(0) rotateX(8deg) rotateZ(-2deg); }
+  50%      { transform: translateY(-3px) rotateX(12deg) rotateZ(2deg); }
+}
+@keyframes edu-char-sparkle {
+  0%, 100% { opacity: 0.35; transform: scale(0.8) rotate(0deg); }
+  50%      { opacity: 1;    transform: scale(1.2) rotate(180deg); }
+}
+
+/* dark-mode tweak — slightly stronger glow for visibility */
+.dark .edu-3d-character { filter: drop-shadow(0 16px 26px rgba(120, 90, 220, 0.45)); }
+.dark .edu-char-face .eye { background: #0b1220; box-shadow: 0 0 0 1px rgba(255,255,255,0.85); }
+.dark .edu-char-face .smile { border-bottom-color: #0b1220; }
+
+/* ===========================================================
+   THEME FIX PACK v2 — Universal Contrast & Visibility
+   Ensures every label, icon, table, card, and form remains
+   fully readable in both light and dark mode without
+   breaking any existing layout.
+   =========================================================== */
+
+/* Block-level slate / gray text variants frequently used inline */
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 { color: var(--text-primary) !important; }
+.dark .text-gray-600 { color: var(--text-secondary) !important; }
+.dark .text-gray-500,
+.dark .text-gray-400 { color: var(--text-muted) !important; }
+
+:not(.dark) .text-gray-400 { color: #64748b !important; }
+:not(.dark) .text-gray-500 { color: #475569 !important; }
+
+/* Slate-300/200 sometimes used for fine text — make readable */
+.dark .text-slate-300 { color: #cbd5e1 !important; }
+.dark .text-slate-200 { color: #e2e8f0 !important; }
+:not(.dark) .text-slate-300 { color: #475569 !important; }
+:not(.dark) .text-slate-400 { color: #475569 !important; }
+
+/* Tables — striping + headers visible both modes */
+.dark table thead { background-color: rgba(255,255,255,0.04) !important; }
+.dark table thead th { color: var(--text-secondary) !important; }
+.dark table tbody td { color: var(--text-primary); }
+.dark table tbody tr:hover { background-color: rgba(255,255,255,0.04) !important; }
+
+:not(.dark) table thead { background-color: #f8fafc; }
+:not(.dark) table thead th { color: #334155 !important; }
+:not(.dark) table tbody td { color: #0b1426; }
+
+/* Form labels never lost */
+label { color: var(--text-secondary); }
+.dark label { color: var(--text-secondary) !important; }
+
+/* Buttons that rely on default text */
+button { color: inherit; }
+
+/* Icon visibility — fix faint icons in light mode */
+:not(.dark) svg.lucide { color: inherit; }
+:not(.dark) .text-slate-500 svg,
+:not(.dark) .text-slate-400 svg { color: #475569; }
+
+/* Sidebar hover in dark — sharper */
+.dark aside nav a:hover { background-color: rgba(255,255,255,0.05); color: #e2e8f0; }
+
+/* Cards: explicit background regardless of inline classes */
+.card-base, .card-premium {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+.dark .card-base, .dark .card-premium {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary);
+}
+
+/* Inputs in dark mode keep crisp borders */
+.dark input, .dark select, .dark textarea {
+  border-color: var(--border-strong) !important;
+}
+.dark input:focus, .dark select:focus, .dark textarea:focus {
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.20) !important;
+}
+
+/* Dropdowns / select options */
+select option { background-color: var(--bg-card); color: var(--text-primary); }
+
+/* Modal/dialog content surface */
+.dark [role="dialog"], .dark .modal-content {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* Pill / chip readability over light surfaces */
+.dark .bg-indigo-100 { background-color: rgba(99, 102, 241, 0.18) !important; }
+.dark .text-indigo-700 { color: #c7d2fe !important; }
+.dark .bg-teal-100 { background-color: rgba(20, 184, 166, 0.18) !important; }
+.dark .text-teal-700 { color: #99f6e4 !important; }
+
+/* Hero gradient text (used on banners) — preserve white */
+.dark .bg-gradient-to-br h1,
+.dark .bg-gradient-to-br h2,
+.dark .bg-gradient-to-r h1,
+.dark .bg-gradient-to-r h2 { color: inherit; }
+
+/* Empty placeholder text */
+.dark .placeholder-slate-400::placeholder,
+.dark .placeholder-gray-400::placeholder { color: #94a3b8 !important; opacity: 1; }
+
+/* Light mode link contrast tweaks */
+:not(.dark) a.text-primary-600,
+:not(.dark) a.text-primary-700 { color: #1d4ed8 !important; }
+
+/* Surface text guarantee */
+.surface { color: var(--text-primary); }
+
+/* Disabled state in dark mode never invisible */
+.dark button:disabled,
+.dark input:disabled,
+.dark select:disabled,
+.dark textarea:disabled { color: #94a3b8 !important; opacity: 0.7; }
+
+/* Fix tiny pill/badge text that may go invisible on accent backgrounds */
+.dark .bg-blue-500 .text-white,
+.dark .bg-emerald-500 .text-white,
+.dark .bg-rose-500 .text-white,
+.dark .bg-amber-500 .text-white,
+.dark .bg-violet-500 .text-white { color: #ffffff !important; }
+
+/* Light-mode kbd readable */
+:not(.dark) kbd { color: #0f172a; }
+.dark kbd { color: #f1f5f9 !important; background-color: rgba(255,255,255,0.07) !important; }
+
+/* Nav active state contrast on focal/qec/exam coloured backgrounds */
+.dark a[aria-current="page"], .dark .NavLink-active { color: #ffffff !important; }
+
+/* Scroll containers respect theme */
+.dark .no-scrollbar { color: var(--text-primary); }
+
+/* Premium consistent section header */
+.section-title { color: var(--text-primary); font-weight: 700; }
+.section-subtitle { color: var(--text-muted); }
+
+/* ============================================================================
+   THEME FIX PACK v3 — CRITICAL VISIBILITY OVERRIDES
+   ----------------------------------------------------------------------------
+   Fixes specific issues reported via screenshots:
+     1. Hero cards using `card-base + bg-gradient-to-*` were rendering with
+        a plain white background because `.card-base { background-color }`
+        was beating the inline Tailwind gradient. Result: light-pink text
+        (text-pink-100, text-purple-100, text-amber-100) appearing invisible
+        on white backgrounds.
+     2. Some buttons / icons faded in light mode.
+     3. Dropdown options invisible in dark mode.
+   ============================================================================ */
+
+/* --- 1. Card-base MUST NOT override Tailwind gradient backgrounds ---------- */
+/* When a card-base also has bg-gradient-to-*, let Tailwind's own
+   `background-image: linear-gradient(..., var(--tw-gradient-stops))` win.
+   We only need to clear the solid bg-color so the gradient isn't covered.
+   IMPORTANT: do NOT set background-image here — Tailwind v3 uses
+   --tw-gradient-stops, not --tw-gradient. Setting background-image to a
+   non-existent variable would resolve to `none` and kill the gradient. */
+.card-base[class*="bg-gradient-to-"],
+.card-premium[class*="bg-gradient-to-"],
+.surface[class*="bg-gradient-to-"],
+[class*="bg-gradient-to-"].card-base,
+[class*="bg-gradient-to-"].card-premium,
+[class*="bg-gradient-to-"].surface {
+  background-color: transparent !important;
+}
+
+/* Dark mode mirror */
+.dark [class*="bg-gradient-to-"].card-base,
+.dark [class*="bg-gradient-to-"].card-premium,
+.dark [class*="bg-gradient-to-"].surface,
+.dark .card-base[class*="bg-gradient-to-"],
+.dark .card-premium[class*="bg-gradient-to-"],
+.dark .surface[class*="bg-gradient-to-"] {
+  background-color: transparent !important;
+}
+
+/* When text is intended to be light/white on these gradient cards, keep it that way */
+[class*="bg-gradient-to-"].text-white,
+.dark [class*="bg-gradient-to-"].text-white { color: #ffffff !important; }
+[class*="bg-gradient-to-"] .text-white,
+.dark [class*="bg-gradient-to-"] .text-white { color: #ffffff !important; }
+
+/* Preserve light-coloured caption text *inside* gradient banners (pink-100,
+   purple-100, blue-100, amber-100, rose-100, emerald-100) — these are
+   intentionally light because they sit on saturated gradient bgs */
+[class*="bg-gradient-to-"] .text-pink-100,
+[class*="bg-gradient-to-"] .text-purple-100,
+[class*="bg-gradient-to-"] .text-blue-100,
+[class*="bg-gradient-to-"] .text-amber-100,
+[class*="bg-gradient-to-"] .text-rose-100,
+[class*="bg-gradient-to-"] .text-emerald-100,
+[class*="bg-gradient-to-"] .text-indigo-100,
+[class*="bg-gradient-to-"] .text-violet-100,
+[class*="bg-gradient-to-"] .text-cyan-100,
+[class*="bg-gradient-to-"] .text-yellow-100,
+[class*="bg-gradient-to-"] .text-orange-100,
+[class*="bg-gradient-to-"] .text-fuchsia-100 { color: inherit; }
+
+/* Direct fallback for those specific pastel-text classes when their parent
+   does NOT contain a gradient — make them readable on neutral backgrounds */
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-pink-100   { color: #be185d !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-purple-100 { color: #6b21a8 !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-amber-100  { color: #92400e !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-rose-100   { color: #9f1239 !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-blue-100   { color: #1e40af !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-indigo-100 { color: #3730a3 !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-violet-100 { color: #5b21b6 !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-cyan-100   { color: #155e75 !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-yellow-100 { color: #854d0e !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-orange-100 { color: #9a3412 !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-emerald-100{ color: #065f46 !important; }
+:not(.dark) :not([class*="bg-gradient-to-"]) > .text-fuchsia-100{ color: #86198f !important; }
+
+/* --- 2. Light mode: extra contrast for muted/secondary text everywhere ---- */
+:not(.dark) .text-slate-500,
+:not(.dark) .text-slate-600,
+:not(.dark) .text-gray-500,
+:not(.dark) .text-gray-600 { color: #334155 !important; }
+
+/* Sidebar inactive items always readable in light mode */
+:not(.dark) aside nav a,
+:not(.dark) aside nav button { color: #334155; }
+:not(.dark) aside nav a:hover,
+:not(.dark) aside nav button:hover { color: #0b1426; }
+
+/* --- 3. Dark mode: select dropdown options crisp ------------------------- */
+.dark select,
+.dark select option {
+  background-color: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+}
+
+/* --- 4. Page-header subtitle visible in light mode ------------------------ */
+:not(.dark) [class*="subtitle"],
+:not(.dark) .text-muted-app { color: #475569 !important; }
+
+/* --- 5. Buttons inside hero gradient cards keep crisp icon colors --------- */
+[class*="bg-gradient-to-"] .lucide { color: currentColor; }
+
+/* --- 6. Inline badges that explicitly tint themselves stay readable ------- */
+:not(.dark) .bg-amber-100.text-amber-700 { color: #92400e !important; }
+:not(.dark) .bg-rose-100.text-rose-700   { color: #9f1239 !important; }
+:not(.dark) .bg-emerald-100.text-emerald-700 { color: #065f46 !important; }
+:not(.dark) .bg-blue-100.text-blue-700   { color: #1e40af !important; }
+:not(.dark) .bg-violet-100.text-violet-700 { color: #5b21b6 !important; }
+:not(.dark) .bg-purple-100.text-purple-700 { color: #6b21a8 !important; }
+:not(.dark) .bg-cyan-100.text-cyan-700   { color: #155e75 !important; }
+:not(.dark) .bg-pink-100.text-pink-700   { color: #9d174d !important; }
+:not(.dark) .bg-indigo-100.text-indigo-700 { color: #3730a3 !important; }
+:not(.dark) .bg-orange-100.text-orange-700 { color: #9a3412 !important; }
+:not(.dark) .bg-teal-100.text-teal-700   { color: #115e59 !important; }
+:not(.dark) .bg-green-100.text-green-700 { color: #14532d !important; }
+:not(.dark) .bg-yellow-100.text-yellow-700 { color: #854d0e !important; }
+
+/* Dark mode badge text crispness */
+.dark .bg-amber-100.text-amber-700 { color: #fde68a !important; }
+.dark .bg-rose-100.text-rose-700   { color: #fecdd3 !important; }
+.dark .bg-emerald-100.text-emerald-700 { color: #a7f3d0 !important; }
+.dark .bg-blue-100.text-blue-700   { color: #bfdbfe !important; }
+.dark .bg-violet-100.text-violet-700 { color: #ddd6fe !important; }
+.dark .bg-purple-100.text-purple-700 { color: #e9d5ff !important; }
+.dark .bg-cyan-100.text-cyan-700   { color: #a5f3fc !important; }
+.dark .bg-pink-100.text-pink-700   { color: #fbcfe8 !important; }
+.dark .bg-indigo-100.text-indigo-700 { color: #c7d2fe !important; }
+.dark .bg-orange-100.text-orange-700 { color: #fed7aa !important; }
+.dark .bg-teal-100.text-teal-700   { color: #99f6e4 !important; }
+
+/* --- 7. PageHeader breadcrumb readable both modes ------------------------- */
+:not(.dark) nav[aria-label="breadcrumb"] a,
+:not(.dark) nav.breadcrumb a { color: #334155; }
+:not(.dark) nav[aria-label="breadcrumb"] a:hover,
+:not(.dark) nav.breadcrumb a:hover { color: #1d4ed8; }
+
+/* --- 8. Modal/dialog body text never invisible ---------------------------- */
+[role="dialog"] { color: var(--text-primary); }
+.dark [role="dialog"] { color: var(--text-primary) !important; }
+
+/* --- 9. Topbar / app shell text always readable -------------------------- */
+:not(.dark) header,
+:not(.dark) header * { color: inherit; }
+:not(.dark) header .text-slate-400,
+:not(.dark) header .text-slate-500 { color: #334155 !important; }
+
+/* --- 10. Disabled states stay visible (text + icon) ---------------------- */
+button:disabled { color: var(--text-muted) !important; }
+.dark button:disabled { color: #94a3b8 !important; }
+
+/* --- 11. Light-mode shadow ring around cards for clearer separation ------- */
+:not(.dark) .card-base:not([class*="bg-gradient-to-"]) {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06);
+}
+
+/* --- 12. Inputs / selects with placeholder always readable --------------- */
+:not(.dark) input::placeholder,
+:not(.dark) textarea::placeholder,
+:not(.dark) select::placeholder { color: #64748b !important; opacity: 1; }
+.dark input::placeholder,
+.dark textarea::placeholder,
+.dark select::placeholder { color: #94a3b8 !important; opacity: 1; }
+
+/* --- 13. Live banner "participants" line readable on white card ----------- */
+/* This handles the case where a parent gradient card lost its gradient and
+   left-aligned light-pink text became invisible. Now even if gradient
+   somehow fails, the text remains readable. */
+.dark .text-pink-100 { color: #fbcfe8; }
+.dark .text-purple-100 { color: #e9d5ff; }
+.dark .text-amber-100 { color: #fde68a; }
+.dark .text-blue-100 { color: #bfdbfe; }
+.dark .text-rose-100 { color: #fecdd3; }
+.dark .text-emerald-100 { color: #a7f3d0; }
+.dark .text-indigo-100 { color: #c7d2fe; }
+.dark .text-violet-100 { color: #ddd6fe; }
+.dark .text-cyan-100 { color: #a5f3fc; }
+
+/* --- 14. Recharts axis text in both modes (chart labels readable) -------- */
+:not(.dark) .recharts-text,
+:not(.dark) .recharts-cartesian-axis-tick-value { fill: #334155 !important; }
+.dark .recharts-text,
+.dark .recharts-cartesian-axis-tick-value { fill: #cbd5e1 !important; }
+
+/* --- 15. Tab pills active state crisp in dark mode ---------------------- */
+.dark .bg-primary-500,
+.dark .bg-primary-600,
+.dark .bg-blue-600 { color: #ffffff; }
+
+/* --- 16. Active sidebar link in dark mode (white text on coloured bg) --- */
+.dark aside nav a.active,
+.dark aside nav a[aria-current="page"] { color: #ffffff !important; }
+
+/* --- 17. Sticky-top blur surfaces remain readable ------------------------ */
+:not(.dark) .backdrop-blur-md,
+:not(.dark) .backdrop-blur-lg,
+:not(.dark) .backdrop-blur-xl { color: inherit; }
+
+/* --- 18. Quick-glance KPI subtitles never washed out -------------------- */
+:not(.dark) .text-xs.text-slate-500,
+:not(.dark) .text-\[11px\].text-slate-500 { color: #334155 !important; }
+
+/* --- 19. Inputs inside dropdowns are always crisp ---------------------- */
+:not(.dark) [role="listbox"] *,
+:not(.dark) [role="menu"] * { color: #0b1426; }
+.dark [role="listbox"] *,
+.dark [role="menu"] * { color: var(--text-primary) !important; }
+
+
+/* ============================================================================
+   THEME FIX PACK v4 — FINAL POLISH (Professional Enterprise Visibility)
+   ----------------------------------------------------------------------------
+   Final layer of visibility/contrast guarantees covering:
+   - Section/group headers, divider strips
+   - Tabs (active/inactive in both modes)
+   - kbd / code / pre on both modes
+   - Toggle / switch components
+   - Sidebar muted icons & subtitles
+   - Tooltip surfaces
+   - Hover states for table rows, list items, action buttons
+   - Tag/chip/badge text on transparent surfaces
+   - Toasts / snackbars / alerts
+   - Empty states and zero-data placeholders
+   - Avatar initials over light backgrounds
+   - Search input clear icons & loading indicators
+   - Skeleton shimmer compatibility
+   - Pagination buttons
+   - Date pickers / time pickers
+   ============================================================================ */
+
+/* --- A. Global safety net: any text on card surfaces is readable -----------*/
+.card-base, .card-premium {
+  color: var(--text-primary);
+}
+.card-base p, .card-base span, .card-base div,
+.card-premium p, .card-premium span, .card-premium div {
+  /* don't force — let utility classes win */
+}
+
+/* --- B. Tab navigation (active / inactive) ---------------------------------*/
+/* Light-mode tabs: inactive must read clearly */
+:not(.dark) [role="tab"]:not([aria-selected="true"]),
+:not(.dark) button[role="tab"]:not(.active) {
+  color: #334155;
+}
+:not(.dark) [role="tab"][aria-selected="true"],
+:not(.dark) button[role="tab"].active {
+  color: #1d4ed8;
+}
+/* Dark-mode tabs */
+.dark [role="tab"]:not([aria-selected="true"]),
+.dark button[role="tab"]:not(.active) {
+  color: var(--text-muted) !important;
+}
+.dark [role="tab"][aria-selected="true"],
+.dark button[role="tab"].active {
+  color: #93c5fd !important;
+}
+
+/* --- C. Pre / code / kbd consistency ---------------------------------------*/
+:not(.dark) pre, :not(.dark) code:not(pre code) {
+  background-color: #f1f5f9;
+  color: #0b1426;
+  border-color: #cbd5e1;
+}
+.dark pre, .dark code:not(pre code) {
+  background-color: rgba(255,255,255,0.05) !important;
+  color: #e2e8f0 !important;
+  border-color: var(--border) !important;
+}
+kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  box-shadow: 0 1px 0 var(--border);
+}
+
+/* --- D. Section dividers ---------------------------------------------------*/
+:not(.dark) hr { border-color: #cbd5e1; }
+.dark hr { border-color: var(--border) !important; }
+
+/* --- E. Toggle switches (off & on states stay visible) ---------------------*/
+:not(.dark) button[role="switch"][aria-checked="false"] {
+  background-color: #cbd5e1;
+}
+.dark button[role="switch"][aria-checked="false"] {
+  background-color: #334155 !important;
+}
+
+/* --- F. Tooltips ----------------------------------------------------------*/
+:not(.dark) [role="tooltip"] {
+  background-color: #0f172a;
+  color: #ffffff;
+  border-color: #1e293b;
+}
+.dark [role="tooltip"] {
+  background-color: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+
+/* --- G. Alerts / banners ---------------------------------------------------*/
+/* Info banner (blue) */
+:not(.dark) .bg-blue-50 { background-color: #eff6ff; }
+.dark .bg-blue-50 { background-color: rgba(59,130,246,0.10) !important; }
+:not(.dark) .border-blue-200 { border-color: #bfdbfe; }
+.dark .border-blue-200 { border-color: rgba(59,130,246,0.30) !important; }
+
+/* Success (emerald) */
+:not(.dark) .bg-emerald-50 { background-color: #ecfdf5; }
+.dark .bg-emerald-50 { background-color: rgba(16,185,129,0.10) !important; }
+:not(.dark) .border-emerald-200 { border-color: #a7f3d0; }
+.dark .border-emerald-200 { border-color: rgba(16,185,129,0.30) !important; }
+
+/* Warning (amber) */
+:not(.dark) .bg-amber-50 { background-color: #fffbeb; }
+.dark .bg-amber-50 { background-color: rgba(245,158,11,0.10) !important; }
+:not(.dark) .border-amber-200 { border-color: #fde68a; }
+.dark .border-amber-200 { border-color: rgba(245,158,11,0.30) !important; }
+
+/* Danger (rose) */
+:not(.dark) .bg-rose-50 { background-color: #fff1f2; }
+.dark .bg-rose-50 { background-color: rgba(244,63,94,0.10) !important; }
+:not(.dark) .border-rose-200 { border-color: #fecdd3; }
+.dark .border-rose-200 { border-color: rgba(244,63,94,0.30) !important; }
+
+/* Violet/Indigo */
+.dark .bg-violet-50 { background-color: rgba(139,92,246,0.10) !important; }
+.dark .bg-indigo-50 { background-color: rgba(99,102,241,0.10) !important; }
+.dark .bg-purple-50 { background-color: rgba(168,85,247,0.10) !important; }
+.dark .bg-cyan-50 { background-color: rgba(14,165,233,0.10) !important; }
+.dark .bg-pink-50 { background-color: rgba(236,72,153,0.10) !important; }
+.dark .bg-teal-50 { background-color: rgba(20,184,166,0.10) !important; }
+.dark .bg-orange-50 { background-color: rgba(249,115,22,0.10) !important; }
+
+/* --- H. Dark / Light: text on -50 backgrounds always readable -------------*/
+:not(.dark) .bg-blue-50 .text-blue-800,
+:not(.dark) .bg-blue-50 .text-blue-200 { color: #1e3a8a !important; }
+.dark .bg-blue-50 .text-blue-800,
+.dark .bg-blue-50 .text-blue-200 { color: #bfdbfe !important; }
+
+/* --- I. Sidebar polish (icons & subtitles in both modes) ------------------*/
+:not(.dark) aside .lucide,
+:not(.dark) nav .lucide { color: inherit; }
+.dark aside, .dark aside * { color: var(--text-primary); }
+.dark aside .text-slate-500,
+.dark aside .text-slate-400,
+.dark aside .text-slate-300 { color: var(--text-muted) !important; }
+.dark aside a:hover { color: #ffffff !important; }
+.dark aside a:hover .lucide { color: #ffffff !important; }
+
+/* --- J. Topbar/Navbar -----------------------------------------------------*/
+.dark header, .dark nav.topbar { color: var(--text-primary); }
+.dark header .lucide, .dark nav.topbar .lucide { color: var(--text-secondary); }
+.dark header button:hover .lucide { color: var(--text-primary); }
+
+/* --- K. Empty-state placeholders ------------------------------------------*/
+:not(.dark) .empty-state-text,
+:not(.dark) .text-muted-app.text-center { color: #475569 !important; }
+.dark .empty-state-text,
+.dark .text-muted-app.text-center { color: #9aa8c0 !important; }
+
+/* --- L. Avatar initials ---------------------------------------------------*/
+.avatar-initial {
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* --- M. Hover row darken (tables / lists) for both modes ------------------*/
+:not(.dark) tbody tr:hover { background-color: #f8fafc; }
+.dark tbody tr:hover { background-color: rgba(255,255,255,0.04) !important; }
+:not(.dark) .divide-y > *:hover { background-color: #f8fafc; }
+.dark .divide-y > *:hover { background-color: rgba(255,255,255,0.04) !important; }
+
+/* Striped table opt-in via .striped class on tbody */
+:not(.dark) tbody.striped tr:nth-child(even):not(:hover) { background-color: #fafbfc; }
+.dark tbody.striped tr:nth-child(even):not(:hover) { background-color: rgba(255,255,255,0.015); }
+
+/* --- N. Pagination buttons ------------------------------------------------*/
+:not(.dark) .pagination-btn,
+:not(.dark) button.page-link {
+  color: #334155;
+  border-color: #cbd5e1;
+  background-color: #ffffff;
+}
+.dark .pagination-btn,
+.dark button.page-link {
+  color: var(--text-secondary) !important;
+  border-color: var(--border) !important;
+  background-color: var(--bg-card) !important;
+}
+
+/* --- O. Action buttons (icon-only) — clear hover bg in both modes ---------*/
+:not(.dark) button.icon-btn:hover,
+:not(.dark) button[aria-label][class*="rounded"]:hover { background-color: #f1f5f9; }
+.dark button.icon-btn:hover,
+.dark button[aria-label][class*="rounded"]:hover { background-color: rgba(255,255,255,0.06) !important; }
+
+/* --- P. Date picker / calendar surfaces ------------------------------------*/
+:not(.dark) .calendar-day,
+:not(.dark) .react-calendar__tile { color: #0b1426; }
+.dark .calendar-day,
+.dark .react-calendar__tile { color: var(--text-primary) !important; }
+
+/* --- Q. Scrollbars inside cards in dark mode ------------------------------*/
+.dark .card-base::-webkit-scrollbar-thumb,
+.dark .card-premium::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2a3858, #364672);
+  border-color: var(--bg-card);
+}
+
+/* --- R. Improved focus rings (both modes) for accessibility ---------------*/
+:not(.dark) *:focus-visible:not(input):not(textarea):not(select) {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.dark *:focus-visible:not(input):not(textarea):not(select) {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+
+/* --- S. Strong text guarantee on any neutral surface ----------------------*/
+:not(.dark) .text-app, :not(.dark) .text-app * { color: var(--text-primary); }
+:not(.dark) h1, :not(.dark) h2, :not(.dark) h3, :not(.dark) h4 { color: #0b1426; }
+.dark h1, .dark h2, .dark h3, .dark h4 { color: var(--text-primary) !important; }
+
+/* --- T. Anchor/link defaults (narrow scope to avoid overriding nav) ------*/
+/* Intentionally left empty — sidebar/topbar/buttons handle their own colors */
+
+/* --- U. Form labels: only enforce when label has no class -----------------*/
+:not(.dark) label:not([class]) { color: #1e293b; }
+.dark label:not([class]) { color: var(--text-secondary) !important; }
+
+/* --- V. Toast / snackbar surface ------------------------------------------*/
+.dark .toast,
+.dark [role="status"] {
+  background-color: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-strong) !important;
+}
+
+/* --- W. Slate-700 / slate-800 used as text colours over light bgs in dark -*/
+.dark .text-slate-800,
+.dark .text-slate-700 { color: var(--text-secondary) !important; }
+
+/* --- X. Specific border tone overrides ------------------------------------*/
+:not(.dark) .border-slate-300 { border-color: #cbd5e1; }
+:not(.dark) .border-slate-400 { border-color: #94a3b8; }
+.dark .border-slate-300 { border-color: var(--border-strong) !important; }
+.dark .border-slate-400 { border-color: var(--border-strong) !important; }
+
+/* --- Y. Range / slider track --------------------------------------------*/
+input[type="range"] { accent-color: #2563eb; }
+.dark input[type="range"] { accent-color: #60a5fa; }
+
+/* --- Z. Checkbox / radio accent (both modes) -----------------------------*/
+input[type="checkbox"], input[type="radio"] { accent-color: #2563eb; }
+.dark input[type="checkbox"], .dark input[type="radio"] { accent-color: #60a5fa; }
+
+/* --- AA. Final guarantee: any element with hardcoded white text on a non-gradient
+         card surface — preserve only when on a coloured background --------*/
+.dark .card-base .text-white:not([class*="bg-"]):not([class*="text-white/"]) { color: var(--text-primary) !important; }
+.dark .card-premium .text-white:not([class*="bg-"]):not([class*="text-white/"]) { color: var(--text-primary) !important; }
+
+/* --- AB. Theme-toggle smooth transitions (only on key surfaces) ----------*/
+html, body, .card-base, .card-premium, .input-base, .btn-primary, .btn-secondary,
+.text-app, .text-muted-app, .text-secondary-app,
+.surface, .surface-elevated, .surface-subtle,
+aside, header, nav, table, td, th {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.2s ease;
+}
+
+/* ============================================================================
+   THEME FIX PACK v5 — FINAL PROFESSIONAL VISIBILITY GUARANTEE
+   ----------------------------------------------------------------------------
+   Targets remaining edge-cases reported across the LMS:
+   - Card hero gradients (text-white/80 etc.) must stay readable
+   - Subtle text-slate-{300,400} inside gradient banners
+   - Sidebar inactive items in BOTH modes
+   - Pagination & breadcrumb crispness
+   - Tab strips, segmented controls, chip toggles
+   - Tables: striped, hover, header, empty
+   - Date pickers / native input controls in dark
+   - File uploaders, drag-drop zones
+   - Avatar fallbacks
+   - Loading spinners / progress bars
+   - Recharts legend & tooltip text
+   - Universal min-contrast fallback (last resort)
+   ============================================================================ */
+
+/* ---- 1. Hero gradient banner text (light-tones) — keep light on gradient -- */
+[class*="bg-gradient-to-"] .text-white,
+[class*="bg-gradient-to-"] .text-white\/95,
+[class*="bg-gradient-to-"] .text-white\/90,
+[class*="bg-gradient-to-"] .text-white\/80,
+[class*="bg-gradient-to-"] .text-white\/70 { color: #ffffff !important; opacity: 1 !important; }
+[class*="bg-gradient-to-"] .text-white\/60 { color: rgba(255,255,255,0.85) !important; }
+[class*="bg-gradient-to-"] .text-white\/50 { color: rgba(255,255,255,0.75) !important; }
+[class*="bg-gradient-to-"] .text-white\/40 { color: rgba(255,255,255,0.65) !important; }
+
+/* Slate-100/200/300 used inside gradient banners should remain near-white */
+[class*="bg-gradient-to-"] .text-slate-100,
+[class*="bg-gradient-to-"] .text-slate-200 { color: #f1f5f9 !important; }
+[class*="bg-gradient-to-"] .text-slate-300 { color: #e2e8f0 !important; }
+
+/* ---- 2. Page-level text fallback — guarantees min readability ---------- */
+:not(.dark) .text-slate-300:not([class*="bg-gradient"]):not([class*="border"]) { color: #64748b !important; }
+:not(.dark) .text-slate-200:not([class*="bg-gradient"]):not([class*="border"]) { color: #94a3b8 !important; }
+
+.dark .text-slate-300:not([class*="bg-gradient"]):not([class*="border"]) { color: #cbd5e1 !important; }
+.dark .text-slate-200:not([class*="bg-gradient"]):not([class*="border"]) { color: #e2e8f0 !important; }
+
+/* ---- 3. Sidebar inactive nav items: both modes ------------------------- */
+:not(.dark) aside nav a:not(.active):not([aria-current="page"]) {
+  color: #334155;
+}
+:not(.dark) aside nav a:not(.active):not([aria-current="page"]):hover {
+  color: #0b1426;
+  background-color: rgba(37, 99, 235, 0.06);
+}
+.dark aside nav a:not(.active):not([aria-current="page"]) {
+  color: #cbd5e1 !important;
+}
+.dark aside nav a:not(.active):not([aria-current="page"]):hover {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Sidebar icons same logic */
+:not(.dark) aside nav a:not(.active):not([aria-current="page"]) .lucide { color: #475569; }
+:not(.dark) aside nav a:not(.active):not([aria-current="page"]):hover .lucide { color: #1d4ed8; }
+.dark aside nav a:not(.active):not([aria-current="page"]) .lucide { color: #94a3b8 !important; }
+.dark aside nav a:not(.active):not([aria-current="page"]):hover .lucide { color: #ffffff !important; }
+
+/* ---- 4. Pagination buttons ---------------------------------------------- */
+:not(.dark) .pagination button,
+:not(.dark) nav[aria-label="pagination"] button {
+  color: #334155;
+  border-color: #cbd5e1;
+}
+.dark .pagination button,
+.dark nav[aria-label="pagination"] button {
+  color: var(--text-primary) !important;
+  border-color: var(--border) !important;
+  background-color: var(--bg-card) !important;
+}
+
+/* ---- 5. Table head: always crisp -------------------------------------- */
+:not(.dark) thead th { color: #334155; }
+.dark thead th { color: var(--text-secondary) !important; }
+
+/* ---- 6. Empty-state cells in tables ----------------------------------- */
+:not(.dark) tbody td.empty,
+:not(.dark) tbody tr.empty td { color: #64748b; }
+.dark tbody td.empty,
+.dark tbody tr.empty td { color: var(--text-muted) !important; }
+
+/* ---- 7. Date / time native inputs (dark mode crispness) --------------- */
+.dark input[type="date"],
+.dark input[type="time"],
+.dark input[type="datetime-local"],
+.dark input[type="month"],
+.dark input[type="week"] {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-card) !important;
+  color-scheme: dark;
+}
+:not(.dark) input[type="date"],
+:not(.dark) input[type="time"],
+:not(.dark) input[type="datetime-local"] {
+  color-scheme: light;
+}
+
+/* WebKit calendar icon */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator,
+.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+  cursor: pointer;
+}
+
+/* ---- 8. File uploaders / drag-drop zones ------------------------------ */
+:not(.dark) .dropzone,
+:not(.dark) [class*="border-dashed"] {
+  border-color: #cbd5e1;
+  color: #334155;
+}
+:not(.dark) [class*="border-dashed"]:hover { border-color: #2563eb; }
+.dark [class*="border-dashed"] {
+  border-color: var(--border-strong) !important;
+  color: var(--text-secondary) !important;
+}
+.dark [class*="border-dashed"]:hover { border-color: #60a5fa !important; }
+
+/* ---- 9. Progress bar background --------------------------------------- */
+:not(.dark) .bg-slate-200.h-1,
+:not(.dark) .bg-slate-200.h-1\.5,
+:not(.dark) .bg-slate-200.h-2,
+:not(.dark) .bg-slate-100.h-1,
+:not(.dark) .bg-slate-100.h-2 { background-color: #e2e8f0; }
+.dark .bg-slate-200.h-1,
+.dark .bg-slate-200.h-1\.5,
+.dark .bg-slate-200.h-2,
+.dark .bg-slate-100.h-1,
+.dark .bg-slate-100.h-2 { background-color: rgba(255,255,255,0.08) !important; }
+
+/* ---- 10. Loading spinners / skeleton over cards ----------------------- */
+.dark .animate-pulse { opacity: 0.85; }
+:not(.dark) .animate-pulse { opacity: 0.95; }
+
+/* ---- 11. Recharts: legend text, tooltip label & value ----------------- */
+:not(.dark) .recharts-legend-item-text { color: #334155 !important; }
+.dark .recharts-legend-item-text { color: #cbd5e1 !important; }
+
+:not(.dark) .recharts-tooltip-label,
+:not(.dark) .recharts-tooltip-item-list .recharts-tooltip-item-name,
+:not(.dark) .recharts-tooltip-item-list .recharts-tooltip-item-value { color: #0b1426 !important; }
+.dark .recharts-tooltip-label,
+.dark .recharts-tooltip-item-list .recharts-tooltip-item-name,
+.dark .recharts-tooltip-item-list .recharts-tooltip-item-value { color: #f1f5f9 !important; }
+
+/* ---- 12. Search/filter input icons: contrast in both modes ------------ */
+:not(.dark) input + .lucide,
+:not(.dark) .relative > .lucide[size] { color: #64748b; }
+.dark input + .lucide,
+.dark .relative > .lucide[size] { color: #94a3b8; }
+
+/* ---- 13. Sticky/floating headers in tables ---------------------------- */
+:not(.dark) thead.sticky,
+:not(.dark) .sticky.top-0 { background-color: rgba(248, 250, 252, 0.95); backdrop-filter: blur(8px); }
+.dark thead.sticky,
+.dark .sticky.top-0 { background-color: rgba(13, 20, 36, 0.92) !important; backdrop-filter: blur(8px); }
+
+/* ---- 14. Action button group icon-only buttons ------------------------ */
+:not(.dark) button.bg-emerald-100,
+:not(.dark) button.bg-rose-100,
+:not(.dark) button.bg-blue-100,
+:not(.dark) button.bg-amber-100,
+:not(.dark) button.bg-violet-100 {
+  /* keep their default tint, just ensure border-readable */
+  border: 1px solid transparent;
+}
+:not(.dark) button.bg-slate-100,
+:not(.dark) button.bg-slate-50 { color: #1e293b; border: 1px solid #e2e8f0; }
+.dark button.bg-slate-100,
+.dark button.bg-slate-50 {
+  background-color: rgba(255,255,255,0.05) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border) !important;
+}
+
+/* ---- 15. Modal scrim & content readability --------------------------- */
+:not(.dark) [role="dialog"] .text-slate-500,
+:not(.dark) [role="dialog"] .text-slate-600 { color: #334155 !important; }
+.dark [role="dialog"] .text-slate-500,
+.dark [role="dialog"] .text-slate-600 { color: var(--text-muted) !important; }
+
+/* ---- 16. Avatar initials (no images) ---------------------------------- */
+.avatar-fallback,
+[class*="rounded-full"][class*="bg-"]:not([class*="bg-white"]):not([class*="bg-slate"]) .avatar-text {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* ---- 17. Calendar-style date cells (day numbers) ---------------------- */
+:not(.dark) .calendar-day,
+:not(.dark) td[role="gridcell"] { color: #1e293b; }
+.dark .calendar-day,
+.dark td[role="gridcell"] { color: var(--text-primary) !important; }
+
+:not(.dark) .calendar-day.muted,
+:not(.dark) td[role="gridcell"].outside-month { color: #94a3b8; }
+.dark .calendar-day.muted,
+.dark td[role="gridcell"].outside-month { color: #64748b !important; }
+
+/* ---- 18. Quill/Editor toolbar buttons --------------------------------- */
+.dark .ql-toolbar,
+.dark .editor-toolbar {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border) !important;
+}
+.dark .ql-toolbar button,
+.dark .editor-toolbar button { color: var(--text-primary) !important; }
+
+/* ---- 19. Snackbar / toast positioning safety -------------------------- */
+.dark .toast-success { background-color: rgba(16,185,129,0.15) !important; color: #6ee7b7 !important; border-color: rgba(16,185,129,0.3) !important; }
+.dark .toast-error   { background-color: rgba(244,63,94,0.15)  !important; color: #fda4af !important; border-color: rgba(244,63,94,0.3)  !important; }
+.dark .toast-warning { background-color: rgba(245,158,11,0.15) !important; color: #fcd34d !important; border-color: rgba(245,158,11,0.3) !important; }
+.dark .toast-info    { background-color: rgba(59,130,246,0.15) !important; color: #93c5fd !important; border-color: rgba(59,130,246,0.3) !important; }
+
+/* ---- 20. SVG icons with currentColor — ensure they inherit text color -- */
+svg[stroke="currentColor"], svg[fill="currentColor"] { color: inherit; }
+
+/* ---- 21. Strong universal fallback for muted text inside cards -------- */
+/* If a paragraph or span uses default color (no class), force theme color */
+:not(.dark) .card-base p:not([class*="text-"]),
+:not(.dark) .card-base span:not([class*="text-"]):not([class*="bg-"]),
+:not(.dark) .card-premium p:not([class*="text-"]),
+:not(.dark) .card-premium span:not([class*="text-"]):not([class*="bg-"]) { color: #1e293b; }
+.dark .card-base p:not([class*="text-"]),
+.dark .card-base span:not([class*="text-"]):not([class*="bg-"]),
+.dark .card-premium p:not([class*="text-"]),
+.dark .card-premium span:not([class*="text-"]):not([class*="bg-"]) { color: var(--text-secondary) !important; }
+
+/* ---- 22. Auth/login pages — text on coloured backgrounds remain readable */
+[class*="bg-gradient-to-"] label,
+[class*="bg-gradient-to-"] .text-slate-700,
+[class*="bg-gradient-to-"] .text-slate-800,
+[class*="bg-gradient-to-"] .text-slate-900 { color: inherit; }
+
+/* ---- 23. Disabled buttons stay legible -------------------------------- */
+:not(.dark) button:disabled { color: #64748b !important; opacity: 0.7; }
+.dark button:disabled { color: #64748b !important; opacity: 0.55; }
+
+/* ---- 24. Read-only / view-only badge ---------------------------------- */
+.badge-view-only {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  background-color: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+.dark .badge-view-only {
+  background-color: rgba(99, 102, 241, 0.18);
+  color: #c7d2fe;
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+/* ---- 25. Classroom-style assignment/quiz card polish ------------------ */
+.classroom-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+}
+.classroom-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+.classroom-card-banner {
+  position: relative;
+  min-height: 84px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  color: #fff;
+}
+.classroom-card-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(255,255,255,0.18), transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(0,0,0,0.18), transparent 60%);
+  pointer-events: none;
+}
+.classroom-card-banner > * { position: relative; z-index: 1; }
+
+/* ---- 26. Light-mode hero card text shadow for legibility on bright gradients */
+[class*="bg-gradient-to-"] h1,
+[class*="bg-gradient-to-"] h2,
+[class*="bg-gradient-to-"] h3 {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+/* ---- 27. Final guarantee: any text utility below #94a3b8 contrast in light mode is upgraded */
+:not(.dark) .text-slate-300:not([class*="bg-gradient"]) { color: #64748b !important; }
+:not(.dark) .text-slate-200:not([class*="bg-gradient"]) { color: #64748b !important; }
+:not(.dark) .text-zinc-400 { color: #475569 !important; }
+:not(.dark) .text-zinc-300 { color: #64748b !important; }
+:not(.dark) .text-gray-400 { color: #475569 !important; }
+:not(.dark) .text-gray-300 { color: #64748b !important; }
+:not(.dark) .text-neutral-400 { color: #475569 !important; }
+
+/* ---- 28. Borders for inputs always visible in light mode -------------- */
+:not(.dark) .input-base { border-color: #cbd5e1; }
+:not(.dark) .input-base:hover:not(:focus) { border-color: #94a3b8; }
+

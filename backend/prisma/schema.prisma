@@ -1,0 +1,3228 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  username  String?  @unique
+  password  String
+  // Roles: super_admin | director_admissions | coordinator | student | teacher | lms_admin
+  role      String   @default("student")
+  // Account active flag — Super Admin can deactivate/reactivate any account
+  isActive  Boolean  @default(true)
+  emailVerified     Boolean   @default(false)
+  emailVerifyToken  String?
+  resetPasswordToken      String?
+  resetPasswordExpires    DateTime?
+  emailNotifications      Boolean   @default(true)
+  termsAccepted      Boolean   @default(false)
+  termsAcceptedAt    DateTime?
+  privacyAccepted    Boolean   @default(false)
+  privacyAcceptedAt  DateTime?
+
+  // --- Authentication security (additive, non-breaking) ---
+  // Last successful login timestamp (Users table requirement).
+  lastLoginAt          DateTime?
+  // Account-lockout tracking: consecutive failed attempts and a lock expiry.
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil          DateTime?
+  // Force password change on first login when a system-generated password
+  // is issued. Defaults to false so existing self-registered users are
+  // unaffected; only seeded/system accounts set this true.
+  mustChangePassword   Boolean   @default(false)
+
+  // --- SUPER ADMIN MODULE (additive, non-breaking) ---
+  // All nullable / defaulted so existing rows are unaffected.
+  lastLoginIp          String?
+  isLocked             Boolean   @default(false)
+  lockedAt             DateTime?
+  forcePasswordReset   Boolean   @default(false)
+
+  // --- STAFF ROLE TAG (Master Prompt §1, additive & non-breaking) ---
+  // The admissions `role` column stays "coordinator" for all department staff
+  // (so every existing auth check / workflow keeps working). `staffRole`
+  // additionally tags WHICH of the three department-staff roles this user is
+  // intended for, so the Super Admin's assignment dropdowns can show ONLY
+  // users of the correct role and never mix them:
+  //   admissions_coordinator | course_coordinator | focal_person
+  // Null for legacy rows / non-staff users.
+  staffRole            String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // A coordinator user is assigned to exactly ONE department.
+  managedDepartment Department? @relation("DepartmentCoordinator")
+  // Additional department-staff assignments (Master Prompt Section 1).
+  courseCoordinatedDepartment Department? @relation("DepartmentCourseCoordinator")
+  focalDepartment             Department? @relation("DepartmentFocalPerson")
+  // Multi-department staff assignments (Phase 1 §2).
+  departmentStaffLinks        DepartmentStaff[] @relation("UserDepartmentStaff")
+
+  profile       Profile?
+  educations    Education[]
+  applications  Application[]
+  documents     Document[]
+  appeals       Appeal[]
+  notifications Notification[]
+  feePayments   FeePayment[]
+  enrollment    Enrollment?
+  interviews    Interview[]
+  meritEntries  MeritEntry[]
+  transactions  Transaction[]
+  statusEvents  StatusEvent[]
+
+  // LMS relations
+  teacherProfile     TeacherProfile?
+  taughtCourses      Course[]            @relation("TeacherCourses")
+  courseEnrollments  CourseEnrollment[]
+  submissions        Submission[]
+  lmsAnnouncements   Announcement[]      @relation("AnnouncementAuthor")
+  lmsMessages        LmsMessage[]
+
+  // Exact, isolated university test dataset ownership.
+  seedDepartments    SeedDepartment[]
+}
+
+model Profile {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
+  firstName        String?
+  lastName         String?
+  cnic             String?
+  fatherName       String?
+  fatherCnic       String?
+  guardianPhone    String?
+  whatsappNumber   String?
+  // Citizenship & residence
+  nationality      String?  @default("Pakistani")
+  countryOfResidence String? @default("Pakistan")
+  // Personal
+  dateOfBirth      String?
+  gender           String?
+  bloodGroup       String?
+  religion         String?
+  maritalStatus    String?
+  occupation       String?
+  // Domicile
+  domicileProvince String?
+  domicileDistrict String?
+  // Legacy single-line address (kept for back-compat)
+  address          String?
+  district         String?
+  phone            String?
+  // ----- Present Address (structured) -----
+  presStreet       String?
+  presPostalCode   String?
+  presVillage      String?
+  presTehsil       String?
+  presDistrict     String?
+  // ----- Permanent Address (structured) -----
+  permStreet       String?
+  permPostalCode   String?
+  permVillage      String?
+  permTehsil       String?
+  permDistrict     String?
+  permSameAsPresent Boolean @default(false)
+  photoPath        String?
+  isComplete       Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Phase 2 performance: admin search filters on CNIC / name.
+  @@index([cnic])
+}
+
+model Education {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  level           String   // 10years (Matric) | 11years (FSC Part-I) | 12years (FSC/Intermediate Full)
+  degree          String
+  // Major / Group / Subject — supports custom entry via "Other"
+  major           String?
+  majorOther      String?  // text when major == "Other"
+  // Roll / registration number on the certificate
+  rollNumber      String?
+  // Final / completed marks
+  marks           Float?
+  totalMarks      Float?
+  grade           String?
+  // FSc Part-I marks (when result awaited)
+  partOneMarks    Float?
+  partOneTotalMarks Float?
+  board           String?
+  passingYear     String?
+  resultStatus    String   @default("Completed") // Completed | Waiting
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents EducationDocument[]
+
+  // Phase 2 performance: education is always loaded per user.
+  @@index([userId])
+}
+
+// ============================================================
+// EDUCATION DOCUMENTS — linked to a single Education record so
+// each qualification keeps its details + documents together.
+// ============================================================
+model EducationDocument {
+  id           Int      @id @default(autoincrement())
+  educationId  Int
+  // Type: dmc | certificate | char_cert | provisional | additional | part1_dmc
+  docType      String
+  filePath     String
+  fileName     String
+  fileSize     Int
+  mimeType     String
+  createdAt    DateTime @default(now())
+
+  education Education @relation(fields: [educationId], references: [id], onDelete: Cascade)
+
+  @@index([educationId])
+}
+
+// ============================================================
+// DEPARTMENT — a department owns one or more programs and has
+// exactly ONE Admissions Coordinator. Created dynamically by the
+// Director Admissions. ADCS lives under a seeded "Computing" dept.
+// ============================================================
+model Department {
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  // Optional faculty grouping label (free text)
+  faculty       String?
+  // Admissions Coordinator (the ONE coordinator who handles admissions review /
+  // interview eligibility for this department). Kept as `coordinatorId` for
+  // backward compatibility with all existing code/relations.
+  coordinatorId Int?     @unique
+  // --- ADDITIONAL DEPARTMENT STAFF (Master Prompt Section 1) ---
+  // Course Coordinator and Department Focal Person assigned by the Super Admin
+  // at department-creation time. Both are optional / nullable so existing
+  // department rows remain valid. These reference User rows (any of these can be
+  // freshly-created staff accounts).
+  courseCoordinatorId Int?  @unique
+  focalPersonId       Int?  @unique
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  coordinator      User?     @relation("DepartmentCoordinator", fields: [coordinatorId], references: [id])
+  courseCoordinator User?    @relation("DepartmentCourseCoordinator", fields: [courseCoordinatorId], references: [id])
+  focalPerson       User?    @relation("DepartmentFocalPerson", fields: [focalPersonId], references: [id])
+  programs    Program[]
+  feeStructures FeeStructure[]
+
+  // --- MULTIPLE STAFF ASSIGNMENT (Phase 1 §2, additive & non-breaking) ---
+  // A department may have MANY Admissions Coordinators, Course Coordinators and
+  // Department Focal Persons. The single FK columns above are kept as the
+  // "primary" of each role for full back-compat with existing code; this
+  // join table records the complete multi-assignment set. Each staff member
+  // remains an independent account — only the department link is shared.
+  staffAssignments DepartmentStaff[]
+}
+
+// ============================================================
+// DEPARTMENT STAFF (Phase 1 §2) — many-to-many department ↔ staff user.
+//   staffRole: admissions_coordinator | course_coordinator | focal_person
+// A user can be assigned to multiple departments and a department can hold
+// multiple users per role. Additive: existing single-FK assignments are
+// mirrored here on save so both representations stay consistent.
+// ============================================================
+model DepartmentStaff {
+  id           Int      @id @default(autoincrement())
+  departmentId Int
+  userId       Int
+  staffRole    String   // admissions_coordinator | course_coordinator | focal_person
+  createdAt    DateTime @default(now())
+
+  department Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  user       User       @relation("UserDepartmentStaff", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([departmentId, userId, staffRole])
+  @@index([departmentId])
+  @@index([userId])
+  @@index([staffRole])
+}
+
+model Program {
+  id              Int      @id @default(autoincrement())
+  name            String
+  code            String   @unique
+  // Director-typed short form used everywhere in the UI/exports/PDFs (e.g. ADCS, ADBA)
+  shortForm       String   @default("")
+  duration        String   @default("2 Years")
+  semesters       Int      @default(4)
+  fee             Float    @default(0)
+  minMarksPercent Float    @default(50)
+  programNumericCode String @default("06")
+  // ------------------------------------------------------------
+  // PER-PROGRAM MERIT CRITERIA (Additional Fixes §3). Every program
+  // now owns its own merit weightage instead of the cycle. The three
+  // weights should sum to 100. Interview weight may be 0% — when it is,
+  // interview marks do not contribute and merit is computed from the
+  // remaining (matric + fsc) weights only. Defaults mirror the old
+  // cycle defaults so existing rows keep behaving identically.
+  // ------------------------------------------------------------
+  matricWeight    Float    @default(30)
+  fscWeight       Float    @default(40)
+  interviewWeight Float    @default(30)
+  // ------------------------------------------------------------
+  // PER-PROGRAM REGISTRATION / ROLL NUMBER CONFIGURATION
+  // (Master Prompt Section 1). Every program stores its OWN numbering
+  // scheme so different departments can use different formats. These are
+  // used to build the Registration Number:
+  //   <instituteCode><termCode><facultyCode><deptCode><programCode><serial>
+  // e.g. 001 + F26 + C + 01 + 06 + 101 = 001F26C0106101
+  // and the Roll Number:  <shortForm>-<termCode>-<serial>  e.g. ADCS-F26-101
+  // The termCode comes from the active AdmissionCycle at enrollment time.
+  // regNextSerial tracks the next student sequence number (starts at 101).
+  // All defaulted so existing rows are valid; regConfigured marks whether the
+  // Super Admin has explicitly set the numbering scheme for the program.
+  // ------------------------------------------------------------
+  instituteCode   String   @default("001")
+  facultyCode     String   @default("C")
+  deptCode        String   @default("01")
+  regNextSerial   Int      @default(101)
+  regConfigured   Boolean  @default(false)
+  // Department this program belongs to (nullable for legacy migration safety)
+  departmentId    Int?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  department   Department?   @relation(fields: [departmentId], references: [id])
+  applications Application[]
+  cyclePrograms CycleProgram[]
+  feeStructures FeeStructure[]
+}
+
+// ============================================================
+// CYCLE PROGRAM — per-program configuration for an admission cycle.
+// When the Director announces a cycle and selects programs, each
+// selected program gets one CycleProgram row holding its own merit
+// criteria, minimum marks, seats, and fee breakdown.
+// ============================================================
+model CycleProgram {
+  id               Int      @id @default(autoincrement())
+  admissionCycleId Int
+  programId        Int
+  meritCriteria    String?  // free text
+  minMarksPercent  Float    @default(50)
+  totalSeats       Int      @default(0)
+  // Fee breakdown line items stored as JSON: [{label, amount}, ...]
+  feeBreakdown     String   @default("[]")
+  // Cached total of breakdown line items (semester / enrollment fee)
+  totalFee         Float    @default(0)
+  isOpen           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  admissionCycle AdmissionCycle @relation(fields: [admissionCycleId], references: [id], onDelete: Cascade)
+  program        Program        @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([admissionCycleId, programId])
+}
+
+model AdmissionCycle {
+  id                       Int      @id @default(autoincrement())
+  title                    String
+  startDate                String
+  endDate                  String
+  isOpen                   Boolean  @default(true)
+  minMarksPercent          Float    @default(50)
+  // NOTE (Additional Fixes §3): Merit weightage is now configured PER PROGRAM
+  // (see Program.matricWeight / fscWeight / interviewWeight). These cycle-level
+  // fields are retained ONLY as legacy fallbacks for old data / programs that
+  // have not been individually configured. The Admission Cycle form no longer
+  // exposes them.
+  matricWeight             Float    @default(30)
+  fscWeight                Float    @default(40)
+  interviewWeight          Float    @default(30)
+  applicationProcessingFee Float    @default(1200)
+  // Legacy fields kept for migration safety; new bank account data lives in BankAccount
+  bankAccountTitle         String   @default("")
+  bankAccountNumber        String   @default("")
+  bankName                 String   @default("")
+  termCode                 String   @default("F26")
+  instituteCode            String   @default("001")
+  facultyCode              String   @default("C")
+  departmentCode           String   @default("01")
+  // Allowed payment methods for this cycle (CSV: BANK_TRANSFER,EASYPAISA,ONEBILL_VOUCHER)
+  allowedPaymentMethods    String   @default("BANK_TRANSFER,EASYPAISA,ONEBILL_VOUCHER")
+  // Legacy EasyPaisa configuration
+  easypaisaEnabled         Boolean  @default(true)
+  easypaisaMerchantId      String   @default("123456")
+  easypaisaMerchantName    String   @default("AUST Admissions")
+  easypaisaAccountNumber   String   @default("03001234567")
+  easypaisaApiKey          String?
+  easypaisaApiUrl          String   @default("https://easypay.easypaisa.com.pk/easypay-service/rest/v4/initiate-customer-payment")
+  // ------------------------------------------------------------
+  // INITIAL MERIT LIST PUBLISHING (Additional Fixes §6). The Admissions
+  // Coordinator prepares the Initial Merit List, then must explicitly
+  // PUBLISH it before students can see whether they are Selected for
+  // Interview / Not Selected.
+  // ------------------------------------------------------------
+  initialMeritPublished    Boolean  @default(false)
+  initialMeritPublishedAt  DateTime?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  applications   Application[]
+  feeAnnouncement FeeAnnouncement?
+  cyclePrograms   CycleProgram[]
+  feeStructures   FeeStructure[]
+}
+
+// ============================================================
+// PAYMENT METHOD CONFIG — global toggles + 1Bill voucher info
+// ============================================================
+model PaymentMethodConfig {
+  id                    Int      @id @default(autoincrement())
+  // Toggles
+  bankTransferEnabled   Boolean  @default(true)
+  easypaisaEnabled      Boolean  @default(false) // DEPRECATED — EasyPaisa removed in Phase 2
+  onebillEnabled        Boolean  @default(true)
+  // Generic Bank Payment Gateway toggle (Phase 2). When on, the online
+  // gateway checkout method is offered to students.
+  bankGatewayEnabled    Boolean  @default(true)
+  bankGatewayInstructions String? @default("Pay the fee online securely through the bank payment gateway. You will be redirected to the bank's secure checkout page.")
+  // 1Bill voucher details
+  onebillCompanyCode    String?  @default("AUST01")
+  onebillConsumerNumber String?
+  onebillInstructions   String?  @default("Use the 1Bill voucher number at any partner bank, ATM, or mobile wallet to pay the fee.")
+  // Easypaisa instructions / account display info (DEPRECATED, kept for migration safety)
+  easypaisaAccountTitle String?  @default("AUST Admissions")
+  easypaisaAccountNumber String? @default("03001234567")
+  easypaisaInstructions String?  @default("")
+  // Bank Transfer instructions
+  bankTransferInstructions String? @default("Deposit fee in any university bank account listed below and upload the deposit slip.")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ============================================================
+// PAYMENT GATEWAY CONFIG — generic Bank Payment Gateway (Phase 2).
+// A single-row table holding the online gateway credentials. Everything
+// is ready so going live only requires filling these in (via Super Admin
+// UI or env vars). DB values override the equivalent environment variables.
+// See docs/PAYMENT_GATEWAY_INTEGRATION.md.
+// ============================================================
+model PaymentGatewayConfig {
+  id            Int      @id @default(autoincrement())
+  gatewayName   String   @default("Bank Payment Gateway")
+  // mode: sandbox | live | manual
+  mode          String   @default("sandbox")
+  enabled       Boolean  @default(true)
+  apiUrl        String   @default("")
+  apiKey        String   @default("")
+  secretKey     String   @default("")
+  merchantId    String   @default("")
+  callbackUrl   String   @default("")
+  webhookSecret String   @default("")
+  returnUrl     String   @default("")
+  // Which fees the gateway supports (CSV): PROCESSING_FEE,SEMESTER_FEE
+  supportedFees String   @default("PROCESSING_FEE,SEMESTER_FEE")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ============================================================
+// UNIVERSITY BANK ACCOUNTS — preloaded with NBP + Bank of Khyber
+// ============================================================
+model BankAccount {
+  id           Int      @id @default(autoincrement())
+  bankName     String
+  accountTitle String
+  iban         String
+  branchCode   String?
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Application {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  programId        Int
+  admissionCycleId Int
+  status           String   @default("SUBMITTED")
+  // SUBMITTED | UNDER_REVIEW | FORWARDED | INTERVIEWED | INTERVIEW_COMPLETED | QUALIFIED | DISQUALIFIED | SELECTED | RESULT_AWAITED | REJECTED | NEED_INFO | APPEAL_SUBMITTED | APPEAL_ACCEPTED | APPEAL_REJECTED | FEE_PENDING | FEE_PAID | FEE_APPROVED | ENROLLED
+  resultStatus     String   @default("Completed") // Completed | Waiting
+  adminRemarks     String?
+  rejectionReason  String?
+  feeReceiptPath   String?
+  // Legacy processing fee fields
+  procFeePaid           Boolean  @default(false)
+  procFeeTxnId          String?
+  procFeeMethod         String?  // EASYPAISA | BANK_TRANSFER | ONEBILL_VOUCHER | BANK_DEPOSIT
+  procFeePaidAt         DateTime?
+  // Appeal tracking on the SAME application
+  appealCount      Int      @default(0)
+  lastAppealStatus String?  // PENDING | ACCEPTED | REJECTED
+  // ------------------------------------------------------------
+  // INITIAL MERIT LIST (Master Prompt Section 5). Before interviews the
+  // Director forwards applications to the Admissions Coordinator, who marks
+  // each application ELIGIBLE or NOT_ELIGIBLE for interview. Only ELIGIBLE
+  // applicants appear on the Initial Merit List (Selected for Interview).
+  //   PENDING (default) | ELIGIBLE | NOT_ELIGIBLE
+  interviewEligibility String @default("PENDING")
+  submittedAt      DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  program        Program        @relation(fields: [programId], references: [id])
+  admissionCycle AdmissionCycle @relation(fields: [admissionCycleId], references: [id])
+  interview      Interview?
+  meritEntry     MeritEntry?
+  feePayment     FeePayment?
+  appeals        Appeal[]
+  statusEvents   StatusEvent[]
+
+  // Phase 2 performance: indexes for the hot admissions queries
+  // (dashboards, exports, merit lists, coordinator scoping).
+  @@index([status])
+  @@index([userId])
+  @@index([programId])
+  @@index([admissionCycleId])
+  @@index([programId, status])
+  @@index([admissionCycleId, status])
+  @@index([submittedAt])
+}
+
+// ============================================================
+// STATUS EVENT TIMELINE — every status change recorded for the timeline view.
+// ============================================================
+model StatusEvent {
+  id            Int      @id @default(autoincrement())
+  applicationId Int
+  userId        Int
+  status        String   // any application status string
+  remarks       String?
+  actorRole     String?  // student | director_admissions | coordinator | system
+  createdAt     DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Phase 2 performance: timeline lookups are always by application/user.
+  @@index([applicationId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Document {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String
+  filePath  String
+  fileName  String
+  fileSize  Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+}
+
+model Interview {
+  id            Int      @id @default(autoincrement())
+  applicationId Int      @unique
+  userId        Int
+  scheduledDate String?
+  scheduledTime String?
+  venue         String?
+  // Online meeting URL (Zoom/Google Meet/Teams)
+  meetingLink   String?
+  // Decision: QUALIFIED | DISQUALIFIED | PENDING
+  decision      String?  @default("PENDING")
+  marks         Float?
+  remarks       String?
+  status        String   @default("SCHEDULED") // SCHEDULED | COMPLETED | CANCELLED
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([decision])
+}
+
+model MeritEntry {
+  id              Int      @id @default(autoincrement())
+  applicationId   Int      @unique
+  userId          Int
+  matricPercent   Float    @default(0)
+  fscPercent      Float    @default(0)
+  interviewMarks  Float    @default(0)
+  matricWeighted  Float    @default(0)
+  fscWeighted     Float    @default(0)
+  interviewWeighted Float  @default(0)
+  totalMerit      Float    @default(0)
+  rank            Int?
+  isFinalized     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Phase 2 performance: merit lists sort by totalMerit and filter by user.
+  @@index([userId])
+  @@index([totalMerit])
+  @@index([isFinalized])
+}
+
+model FeeAnnouncement {
+  id               Int      @id @default(autoincrement())
+  admissionCycleId Int      @unique
+  feeAmount        Float
+  deadline         String
+  bankAccountTitle String
+  bankAccountNumber String
+  bankName         String
+  isAnnounced      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  admissionCycle AdmissionCycle @relation(fields: [admissionCycleId], references: [id])
+}
+
+// ============================================================
+// FEE STRUCTURE (Fix 3) — the SEMESTER / ENROLLMENT / TUITION fee that the
+// Director announces separately PER department PER program for a given cycle.
+// This is DISTINCT from AdmissionCycle.applicationProcessingFee (the
+// application processing fee paid at cycle time) and from the legacy
+// FeeAnnouncement (single per-cycle amount). Only students on the FINALIZED
+// merit list for the matching program+cycle may see it.
+// ============================================================
+model FeeStructure {
+  id               Int      @id @default(autoincrement())
+  cycleId          Int
+  departmentId     Int
+  programId        Int
+  // JSON array of { label: string, amount: number }
+  lineItems        String   @default("[]")
+  // Calculated sum of all line-item amounts
+  totalAmount      Float    @default(0)
+  // Locked (no further edits) once ANY payment is submitted for it
+  isLocked         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cycle      AdmissionCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  department Department     @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  program    Program        @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, programId])
+}
+
+model FeePayment {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  applicationId Int      @unique
+  amount        Float
+  receiptPath   String?
+  // Methods: BANK_TRANSFER | EASYPAISA | ONEBILL_VOUCHER | BANK_DEPOSIT (legacy)
+  paymentMethod String   @default("BANK_TRANSFER")
+  txnId         String?
+  bankAccountId Int?     // references BankAccount.id used (optional)
+  paidAt        DateTime?
+  status        String   @default("PENDING")
+  adminRemarks  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Enrollment {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique
+  rollNumber          String?  @unique
+  registrationNumber  String?  @unique
+  lmsUsername         String?
+  // Plain temporary LMS password (shown once on the transition card until first
+  // LMS login). After the forced password change it is hashed into lmsPasswordHash
+  // and this field is cleared.
+  lmsPassword         String?
+  lmsPasswordHash     String?
+  // True until the student completes the forced first-login password change.
+  lmsMustChangePassword Boolean @default(true)
+  // True once the student has logged into the LMS at least once (with new pw).
+  lmsActivated        Boolean  @default(false)
+  // ----------------------------------------------------------------
+  // LMS account linkage (Section 7 / Section 10) — added for the new
+  // LmsUser-based LMS authentication system. The Enrollment is the
+  // confirmed-enrolled ADCS-student record in the admissions system.
+  // ----------------------------------------------------------------
+  // True once the temporary LMS password has been changed by the student.
+  lmsPasswordChanged   Boolean  @default(false)
+  // True once a dedicated LmsUser account has been provisioned.
+  lmsAccountCreated    Boolean  @default(false)
+  // Foreign-key style link to the dedicated LmsUser account (cuid string).
+  lmsUserId            String?  @unique
+  enrolledAt          DateTime?
+  feePaid             Boolean  @default(false)
+  status              String   @default("PENDING")
+  // ------------------------------------------------------------
+  // ENROLLMENT PUBLISHING GATE (Master Prompt Section 7 & 8).
+  // After fee approval the Registration Number, Roll Number and LMS account
+  // are generated automatically, but the credentials remain HIDDEN from the
+  // student ("Pending") until the Director Admissions clicks "Show to Student".
+  // credentialsPublished flips to true at that moment, unlocking the full
+  // credentials view on the student portal.
+  // ------------------------------------------------------------
+  credentialsPublished   Boolean   @default(false)
+  credentialsPublishedAt DateTime?
+  // ------------------------------------------------------------
+  // AUTOMATIC COURSE ENROLLMENT (Additional Fixes §10). Set to true once
+  // the student has been auto-registered into their program's first-semester
+  // courses (per the Course Scheme) on first LMS login. Prevents duplicate
+  // enrollment and lets us know provisioning is complete.
+  // ------------------------------------------------------------
+  lmsCoursesEnrolled     Boolean   @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// LMS USER (Section 7) — dedicated identity for the new LMS
+// frontend (separate app). One per LMS account across all 7 roles.
+// Username is the student's Roll Number for Student accounts.
+// ============================================================
+model LmsUser {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  // Optional login email (additive, nullable). When present, the LMS login
+  // endpoint accepts EITHER the username OR this email as the identifier.
+  // Existing rows remain valid (NULL email) and continue to log in by username.
+  email              String?   @unique
+  passwordHash       String
+  // LmsRole — one of (validated in application code, see backend/src/utils/lmsRoles.js):
+  //   Student | Teacher | CourseCoordinator | FocalPerson | ExamController | QECCoordinator | Provost
+  // Stored as String because the SQLite connector does not support native enums.
+  // When migrating to PostgreSQL this can be promoted to a real `enum LmsRole`.
+  role               String
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  linkedRollNumber   String?
+  // --- Authentication security (additive, non-breaking) ---
+  lastLoginAt          DateTime?
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  profile LmsStudentProfile?
+  // Staff / Exam Controller editable profile (additive, optional).
+  examProfile LmsExamProfile?
+
+  // ----------------------------------------------------------------
+  // LMS ACADEMIC CORE relations (additive). A LmsUser can act as a
+  // Teacher (owns offerings / sections) or a Student (registrations,
+  // attendance, submissions, quiz attempts, results). All relations
+  // are optional so existing LmsUser rows remain valid.
+  // ----------------------------------------------------------------
+  taughtOfferings    CourseOffering[]    @relation("OfferingTeacher")
+  taughtSections     Section[]           @relation("SectionTeacher")
+  registrations      CourseRegistration[]
+  attendanceRecords  AttendanceRecord[]
+  assignmentSubmissions AssignmentSubmission[]
+  quizAttempts       QuizAttempt[]
+  courseResults      CourseResult[]
+  gradedSubmissions  AssignmentSubmission[] @relation("SubmissionGrader")
+  authoredLmsAnnouncements LmsAnnouncement[] @relation("LmsAnnouncementAuthor")
+  sentLmsMessages    LmsThreadMessage[]   @relation("LmsMessageSender")
+  auditLogs          LmsAuditLog[]
+  notes              StudentNote[]        @relation("StudentNotes")
+  appeals            StudentAppeal[]      @relation("StudentAppeals")
+  liveClassAttendance LiveClassAttendance[] @relation("LiveClassAttendee")
+  activities         StudentActivity[]    @relation("UserActivities")
+  aiTutorMessages    AiTutorMessage[]     @relation("AiTutorMessages")
+  // Lab Management (Req 1/3) — lab-task submissions authored by a Student and
+  // graded by a Teacher. Both optional so existing rows remain valid.
+  labTaskSubmissions      LabTaskSubmission[]
+  gradedLabTaskSubmissions LabTaskSubmission[] @relation("LabTaskSubmissionGrader")
+}
+
+// ============================================================
+// LMS STUDENT PROFILE (Section 9) — a snapshot of the student's
+// admissions profile copied into the LMS on enrollment confirmation.
+// ============================================================
+model LmsStudentProfile {
+  id                String   @id @default(cuid())
+  lmsUserId         String   @unique
+  lmsUser           LmsUser  @relation(fields: [lmsUserId], references: [id], onDelete: Cascade)
+
+  // Personal info copied from admissions
+  fullName          String
+  fatherName        String
+  cnic              String
+  dateOfBirth       String
+  gender            String
+  religion          String?
+  nationality       String?
+  domicile          String?
+
+  // Contact info
+  phone             String?
+  email             String?
+  address           String?
+  whatsapp          String?
+  maritalStatus     String?
+
+  // Academic info
+  program           String   // "Associate Degree in Computer Science"
+  programShortForm  String   // "ADCS"
+  department        String
+  rollNumber        String
+  registrationNumber String
+  session           String   // cycle name e.g. "Fall 2026"
+  enrollmentDate    DateTime
+
+  // Documents status
+  photoUrl          String?
+  cnicDocUrl        String?
+  matricCertUrl     String?
+  intermediateCertUrl String?
+  migrationCertUrl  String?  // may be missing — tracked separately
+  domicileCertUrl   String?
+  otherDocsJson     String?  // JSON array of any additional uploaded docs
+
+  // Missing documents tracking
+  missingDocs       String?  // JSON array of missing document names
+
+  // Staff fields (additive) — used when this profile row backs a staff
+  // member (Course Coordinator / Focal Person) rather than a student.
+  // Nullable so existing student rows are unaffected.
+  designation       String?
+  employeeId        String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================================
+// LMS EXAM CONTROLLER PROFILE (additive, optional)
+//   Dedicated editable profile for staff users such as the Exam
+//   Controller. Kept separate from LmsStudentProfile so its many
+//   student-only required fields do not apply. All fields nullable
+//   so existing rows / users remain valid.
+// ============================================================
+model LmsExamProfile {
+  id            String   @id @default(cuid())
+  lmsUserId     String   @unique
+  lmsUser       LmsUser  @relation(fields: [lmsUserId], references: [id], onDelete: Cascade)
+
+  fullName      String?
+  fatherName    String?
+  cnic          String?
+  email         String?
+  phone         String?
+  whatsapp      String?
+  gender        String?
+  maritalStatus String?
+  address       String?
+  photoUrl      String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Transaction {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  applicationId   Int?
+  txnId           String   @unique
+  orderRefId      String?
+  purpose         String
+  method          String   @default("EASYPAISA")
+  amount          Float
+  status          String   @default("PENDING")
+  mobileAccount   String?
+  errorMessage    String?
+  isMock          Boolean  @default(false)
+  rawResponse     String?
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Appeal {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  applicationId Int?
+  appealType    String   // APPLICATION_REJECTION | INTERVIEW_DISQUALIFICATION | FEE_REJECTION | GENERAL
+  subject       String
+  message       String
+  proofPath     String?
+  // PENDING | ACCEPTED | REJECTED  (kept legacy APPROVED|REJECTED accepted)
+  status        String   @default("PENDING")
+  adminResponse String?
+  decidedBy     String?  // director_admissions | coordinator
+  decidedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  application Application? @relation(fields: [applicationId], references: [id])
+
+  @@index([userId])
+  @@index([applicationId])
+  @@index([status])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  // Optional clickable link e.g. interview meeting link
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// LMS Models (unchanged)
+// ============================================================
+model TeacherProfile {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @unique
+  firstName    String?
+  lastName     String?
+  designation  String?
+  department   String?  @default("Computer Science")
+  qualification String?
+  phone        String?
+  bio          String?
+  photoPath    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Course {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique
+  title        String
+  description  String?
+  creditHours  Int      @default(3)
+  semester     Int      @default(1)
+  programCode  String?
+  teacherId    Int?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacher       User?               @relation("TeacherCourses", fields: [teacherId], references: [id])
+  enrollments   CourseEnrollment[]
+  lessons       Lesson[]
+  assignments   Assignment[]
+  announcements Announcement[]
+  materials     Material[]
+}
+
+model CourseEnrollment {
+  id         Int      @id @default(autoincrement())
+  courseId   Int
+  studentId  Int
+  enrolledAt DateTime @default(now())
+  finalGrade String?
+  status     String   @default("ACTIVE")
+
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, studentId])
+}
+
+model Lesson {
+  id         Int      @id @default(autoincrement())
+  courseId   Int
+  title      String
+  content    String?
+  videoUrl   String?
+  weekNumber Int      @default(1)
+  order      Int      @default(0)
+  isPublished Boolean @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model Material {
+  id         Int      @id @default(autoincrement())
+  courseId   Int
+  title      String
+  type       String   @default("FILE")
+  filePath   String?
+  fileName   String?
+  url        String?
+  createdAt  DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+}
+
+model Assignment {
+  id          Int      @id @default(autoincrement())
+  courseId    Int
+  title       String
+  description String?
+  totalMarks  Float    @default(100)
+  deadline    String
+  isPublished Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course      Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+}
+
+model Submission {
+  id           Int      @id @default(autoincrement())
+  assignmentId Int
+  studentId    Int
+  content      String?
+  filePath     String?
+  fileName     String?
+  submittedAt  DateTime @default(now())
+  marks        Float?
+  feedback     String?
+  status       String   @default("SUBMITTED")
+  gradedAt     DateTime?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  courseId  Int?
+  authorId  Int
+  title     String
+  message   String
+  createdAt DateTime @default(now())
+
+  course Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  author User    @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model LmsMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CaptchaChallenge {
+  id          String   @id
+  answer      String
+  attemptsLeft Int     @default(3)
+  expiresAt   DateTime
+  used        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+// ============================================================
+// LoginAudit — audit logging for login activity (security req).
+// Records every login attempt across BOTH systems (admissions
+// "user" and LMS "lms_user") so administrators can review access.
+// Purely additive; no relations so it never affects other models.
+// ============================================================
+model LoginAudit {
+  id         String   @id @default(cuid())
+  system     String   // 'admissions' | 'lms'
+  actorType  String   // 'user' | 'lms_user'
+  actorId    String?  // user.id / lmsUser.id (string for both)
+  username   String?  // identifier used at login (email or username)
+  role       String?
+  success    Boolean
+  reason     String?  // e.g. 'invalid_password', 'locked', 'inactive', 'ok'
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([username])
+  @@index([createdAt])
+}
+
+// ============================================================
+// ============================================================
+//  LMS ACADEMIC CORE  (Student + Teacher modules)
+//  ------------------------------------------------------------
+//  All models below are ADDITIVE. They extend the existing schema
+//  without modifying admissions tables. The academic core is keyed
+//  on the new LmsUser identity (Teacher / Student) used by the
+//  dedicated LMS frontend + lmsAuth middleware.
+//
+//  Design notes:
+//   - Soft delete: an `isDeleted` flag + `deletedAt` on master records.
+//   - Indexes added on every foreign key + common filter columns.
+//   - SQLite has no enums → status fields are validated strings.
+//   - JSON columns store quiz question payloads / option arrays.
+// ============================================================
+
+// ------------------------------------------------------------
+// LMS PROGRAM — academic program in the LMS (mirrors admissions
+// Program by code, but kept independent so the LMS owns its own
+// academic structure & scheme of study). shortForm e.g. "ADCS".
+// ------------------------------------------------------------
+model LmsProgram {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique
+  name          String
+  shortForm     String   @default("")
+  department    String?
+  totalSemesters Int     @default(4)
+  durationYears Float    @default(2)
+  isActive      Boolean  @default(true)
+  isDeleted     Boolean  @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  semesters LmsSemester[]
+  courses   LmsCourse[]
+  schemes   SchemeOfStudy[]
+}
+
+// ------------------------------------------------------------
+// LMS SEMESTER — a numbered semester template within a program
+// (Semester 1..N). Distinct from an academic term/session which is
+// represented by AcademicTerm below.
+// ------------------------------------------------------------
+model LmsSemester {
+  id          Int      @id @default(autoincrement())
+  programId   Int
+  number      Int                          // 1..N
+  title       String                       // "Semester 1"
+  isActive    Boolean  @default(true)
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  program  LmsProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  courses  LmsCourse[]
+
+  @@unique([programId, number])
+  @@index([programId])
+}
+
+// ------------------------------------------------------------
+// ACADEMIC TERM — a real teaching session (e.g. "Fall 2026").
+// CourseOfferings happen within a term. Exactly one term is current.
+// ------------------------------------------------------------
+model AcademicTerm {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique               // "F26"
+  title       String                          // "Fall 2026"
+  startDate   String?
+  endDate     String?
+  isCurrent   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offerings CourseOffering[]
+}
+
+// ------------------------------------------------------------
+// LMS COURSE — catalog course definition (independent of teaching
+// term). A course belongs to a program + a semester slot.
+// ------------------------------------------------------------
+model LmsCourse {
+  id           Int      @id @default(autoincrement())
+  code         String   @unique               // "CS-101"
+  title        String
+  description  String?
+  creditHours  Int      @default(3)           // TOTAL credit hours (theory + lab)
+  // Credit-hour breakdown (additive, nullable for back-compat). When hasLab is
+  // true the course has a distinct Lab component and theoryCredit + labCredit
+  // give the "Theory+Lab" split (e.g. 3 + 1 → displayed as "3+1"). When hasLab
+  // is false the course is theory-only and theoryCredit == creditHours. Existing
+  // rows (null theoryCredit/labCredit) fall back to creditHours for display.
+  hasLab       Boolean  @default(false)
+  theoryCredit Int?
+  labCredit    Int?
+  programId    Int?
+  semesterId   Int?
+  isActive     Boolean  @default(true)
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  program   LmsProgram?  @relation(fields: [programId], references: [id])
+  semester  LmsSemester? @relation(fields: [semesterId], references: [id])
+  offerings CourseOffering[]
+  schemeItems SchemeCourse[]
+  weightage CourseWeightage?
+
+  @@index([programId])
+  @@index([semesterId])
+}
+
+// ------------------------------------------------------------
+// COURSE OFFERING — a course taught in a specific term by a teacher.
+// This is the central object students register into via sections.
+// ------------------------------------------------------------
+model CourseOffering {
+  id           Int      @id @default(autoincrement())
+  courseId     Int
+  termId       Int
+  teacherId    String?                         // LmsUser.id (Teacher)
+  // Assessment weightage (percent, must total 100). Stored explicitly
+  // so the gradebook can compute weighted totals.
+  assignmentWeight Float @default(20)
+  quizWeight       Float @default(15)
+  midWeight        Float @default(25)
+  finalWeight      Float @default(40)
+  status       String   @default("ACTIVE")     // ACTIVE | COMPLETED | CANCELLED
+  isDeleted    Boolean  @default(false)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  course   LmsCourse    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  term     AcademicTerm @relation(fields: [termId], references: [id], onDelete: Cascade)
+  teacher  LmsUser?     @relation("OfferingTeacher", fields: [teacherId], references: [id])
+
+  sections      Section[]
+  registrations CourseRegistration[]
+  attendanceSessions AttendanceSession[]
+  assignments   Assignment2[]
+  quizzes       Quiz[]
+  materials     CourseMaterial[]
+  results       CourseResult[]
+  announcements LmsAnnouncement[]
+  scheduleSlots ScheduleSlot[]
+  liveClasses   LiveClass[]
+  labTasks      LabTask[]
+
+  @@unique([courseId, termId])
+  @@index([courseId])
+  @@index([termId])
+  @@index([teacherId])
+}
+
+// ------------------------------------------------------------
+// SECTION — a class section of an offering (A / B / Morning ...).
+// A section may have its own teacher (defaults to offering teacher).
+// ------------------------------------------------------------
+model Section {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  name        String                          // "A"
+  capacity    Int      @default(50)
+  teacherId   String?                          // LmsUser.id (Teacher)
+  room        String?
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  teacher  LmsUser?       @relation("SectionTeacher", fields: [teacherId], references: [id])
+  registrations CourseRegistration[]
+
+  @@unique([offeringId, name])
+  @@index([offeringId])
+  @@index([teacherId])
+}
+
+// ------------------------------------------------------------
+// COURSE REGISTRATION — a student's enrollment in an offering.
+// registrationType supports the retake/improvement/withdraw lifecycle.
+// ------------------------------------------------------------
+model CourseRegistration {
+  id           Int      @id @default(autoincrement())
+  offeringId   Int
+  sectionId    Int?
+  studentId    String                          // LmsUser.id (Student)
+  // REGULAR | RETAKE | IMPROVEMENT
+  registrationType String @default("REGULAR")
+  // ENROLLED | WITHDRAWN | DROPPED | COMPLETED
+  status       String   @default("ENROLLED")
+  registeredAt DateTime @default(now())
+  withdrawnAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  section  Section?       @relation(fields: [sectionId], references: [id])
+  student  LmsUser        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([offeringId, studentId])
+  @@index([offeringId])
+  @@index([studentId])
+  @@index([sectionId])
+}
+
+// ------------------------------------------------------------
+// ATTENDANCE SESSION — one class meeting for an offering on a date.
+// Teacher creates a session, then marks AttendanceRecords per student.
+// ------------------------------------------------------------
+model AttendanceSession {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  date        String                          // ISO date "2026-09-01"
+  topic       String?
+  durationMin Int      @default(60)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  records  AttendanceRecord[]
+
+  @@unique([offeringId, date])
+  @@index([offeringId])
+}
+
+model AttendanceRecord {
+  id          Int      @id @default(autoincrement())
+  sessionId   Int
+  studentId   String                          // LmsUser.id
+  // PRESENT | ABSENT | LATE | LEAVE
+  status      String   @default("PRESENT")
+  remarks     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student LmsUser           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+}
+
+// ------------------------------------------------------------
+// ASSIGNMENT (LMS academic core) — named Assignment2 to avoid
+// colliding with the legacy admissions-LMS `Assignment` model.
+// ------------------------------------------------------------
+model Assignment2 {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  title       String
+  description String?
+  totalMarks  Float    @default(100)
+  weight      Float    @default(0)             // contribution within assignment bucket
+  dueDate     String
+  startTime   String?                          // optional start time (HH:mm)
+  endTime     String?                          // optional end time (HH:mm)
+  allowLate   Boolean  @default(true)
+  isPublished Boolean  @default(true)
+  filePath    String?                          // optional brief attachment
+  fileName    String?
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering    CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[]
+  questions   Assignment2Question[]
+
+  @@index([offeringId])
+}
+
+// Structured questions for an assignment (MCQ / Short / Descriptive).
+// Optional — assignments can also be plain instruction/file based.
+model Assignment2Question {
+  id            Int      @id @default(autoincrement())
+  assignmentId  Int
+  text          String
+  type          String   @default("MCQ")        // MCQ | SHORT | DESCRIPTIVE
+  optionsJson   String   @default("[]")          // JSON array of option strings (MCQ)
+  correctAnswer String?                          // index (MCQ) or model answer
+  marks         Float    @default(1)
+  order         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  assignment Assignment2 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId])
+}
+
+model AssignmentSubmission {
+  id           Int      @id @default(autoincrement())
+  assignmentId Int
+  studentId    String                          // LmsUser.id
+  content      String?
+  filePath     String?
+  fileName     String?
+  submittedAt  DateTime @default(now())
+  // SUBMITTED | LATE | GRADED | RESUBMIT
+  status       String   @default("SUBMITTED")
+  marks        Float?
+  feedback     String?
+  gradedById   String?                          // LmsUser.id (Teacher)
+  gradedAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment Assignment2 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    LmsUser     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  gradedBy   LmsUser?    @relation("SubmissionGrader", fields: [gradedById], references: [id])
+
+  @@unique([assignmentId, studentId])
+  @@index([assignmentId])
+  @@index([studentId])
+}
+
+// ------------------------------------------------------------
+// LAB MANAGEMENT (Req 1/2/3) — LAB TASK + SUBMISSION
+//  A LabTask belongs to a CourseOffering (whose course has a Lab
+//  component, LmsCourse.hasLab === true). A Teacher can create as many
+//  lab tasks as required (the number is NOT fixed). Students submit lab
+//  work per lab task; the Teacher uploads marks. Marks appear live to the
+//  student, Focal Person and everywhere the data surfaces (Results,
+//  dashboards). Modelled after Assignment2 / AssignmentSubmission.
+// ------------------------------------------------------------
+model LabTask {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  title       String
+  description String?
+  totalMarks  Float    @default(100)
+  dueDate     String
+  // Optional targeting metadata (organised/filterable by Semester / Section /
+  // Program in the Teacher Lab Tasks module). sectionId scopes a lab task to a
+  // single section; null = all sections of the offering.
+  sectionId   Int?
+  allowLate   Boolean  @default(true)
+  isPublished Boolean  @default(true)
+  filePath    String?                          // optional brief attachment
+  fileName    String?
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering    CourseOffering      @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  submissions LabTaskSubmission[]
+
+  @@index([offeringId])
+  @@index([sectionId])
+}
+
+model LabTaskSubmission {
+  id          Int      @id @default(autoincrement())
+  labTaskId   Int
+  studentId   String                           // LmsUser.id
+  content     String?
+  filePath    String?
+  fileName    String?
+  submittedAt DateTime @default(now())
+  // SUBMITTED | LATE | GRADED | RESUBMIT
+  status      String   @default("SUBMITTED")
+  marks       Float?
+  feedback    String?
+  gradedById  String?                           // LmsUser.id (Teacher)
+  gradedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  labTask LabTask @relation(fields: [labTaskId], references: [id], onDelete: Cascade)
+  student LmsUser @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  gradedBy LmsUser? @relation("LabTaskSubmissionGrader", fields: [gradedById], references: [id])
+
+  @@unique([labTaskId, studentId])
+  @@index([labTaskId])
+  @@index([studentId])
+}
+
+// ------------------------------------------------------------
+// QUIZ + QUESTIONS + ATTEMPTS
+//  - Questions support MCQ (options JSON + correct index) and SHORT.
+//  - Attempts store answers JSON and an auto/manual score.
+// ------------------------------------------------------------
+model Quiz {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  title       String
+  description String?
+  totalMarks  Float    @default(0)
+  durationMin Int      @default(30)
+  startAt     String?
+  endAt       String?
+  isPublished Boolean  @default(false)
+  shuffle     Boolean  @default(true)
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering  CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([offeringId])
+}
+
+model QuizQuestion {
+  id          Int      @id @default(autoincrement())
+  quizId      Int
+  text        String
+  type        String   @default("MCQ")          // MCQ | TRUEFALSE | SHORT
+  optionsJson String   @default("[]")            // JSON array of option strings
+  correctAnswer String?                          // index (MCQ) or text (SHORT)
+  marks       Float    @default(1)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([quizId])
+}
+
+model QuizAttempt {
+  id          Int      @id @default(autoincrement())
+  quizId      Int
+  studentId   String                            // LmsUser.id
+  answersJson String   @default("{}")            // JSON map questionId -> answer
+  score       Float?
+  maxScore    Float    @default(0)
+  // IN_PROGRESS | SUBMITTED | GRADED
+  status      String   @default("IN_PROGRESS")
+  startedAt   DateTime @default(now())
+  submittedAt DateTime?
+  gradedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  quiz    Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student LmsUser @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([quizId, studentId])
+  @@index([quizId])
+  @@index([studentId])
+}
+
+// ------------------------------------------------------------
+// COURSE RESULT — per-student final grade for an offering.
+// Stores component marks (assignment/quiz/mid/final), computed
+// percentage, letter grade, and grade points for the transcript.
+// ------------------------------------------------------------
+model CourseResult {
+  id           Int      @id @default(autoincrement())
+  offeringId   Int
+  studentId    String                           // LmsUser.id
+  assignmentMarks Float @default(0)
+  quizMarks       Float @default(0)
+  midMarks        Float @default(0)
+  finalMarks      Float @default(0)
+  // Lab / Semester-Project component (client requirement 2.3) — used when the
+  // Course Coordinator has assigned a Lab Task weightage to the course. Kept
+  // additive & nullable-safe (default 0) so non-lab courses are unaffected.
+  labMarks        Float @default(0)
+  // Out-of values for each component (defaults reflect typical scheme).
+  assignmentMax   Float @default(100)
+  quizMax         Float @default(100)
+  midMax          Float @default(100)
+  finalMax        Float @default(100)
+  labMax          Float @default(100)
+  totalPercent Float    @default(0)
+  letterGrade  String?
+  gradePoints  Float    @default(0)
+  // DRAFT | PUBLISHED
+  status       String   @default("DRAFT")
+  remarks      String?
+  publishedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  student  LmsUser        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([offeringId, studentId])
+  @@index([offeringId])
+  @@index([studentId])
+}
+
+// ------------------------------------------------------------
+// COURSE MATERIAL — teacher-uploaded resources for an offering.
+// ------------------------------------------------------------
+model CourseMaterial {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  title       String
+  type        String   @default("FILE")          // FILE | LINK | VIDEO
+  filePath    String?
+  fileName    String?
+  url         String?
+  weekNumber  Int      @default(1)
+  // --- Teacher-module enhancements (additive, all optional) ---
+  description   String?                            // lecture / resource description
+  durationMin   Int?                               // lecture duration in minutes
+  lectureNumber Int?                               // sequential lecture number within course
+  resourceType  String?                            // library category: BOOK | SLIDES | NOTES | PDF | OTHER
+  fileSize      Int?                               // bytes (for display / 5MB enforcement)
+  uploadedById  String?                            // LmsUser.id of the teacher who uploaded (library scoping)
+  isDeleted   Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@index([offeringId])
+  @@index([uploadedById])
+}
+
+// ------------------------------------------------------------
+// LMS ANNOUNCEMENT — offering-scoped or global announcements
+// authored by a teacher/coordinator (LmsUser).
+// ------------------------------------------------------------
+model LmsAnnouncement {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int?
+  authorId    String                            // LmsUser.id
+  title       String
+  message     String
+  audience    String   @default("STUDENTS")      // STUDENTS | TEACHERS | ALL
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  offering CourseOffering? @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  author   LmsUser         @relation("LmsAnnouncementAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([offeringId])
+  @@index([authorId])
+}
+
+// ------------------------------------------------------------
+// LMS MESSAGE THREAD — lightweight direct messaging between LMS users.
+// ------------------------------------------------------------
+model LmsThreadMessage {
+  id          Int      @id @default(autoincrement())
+  senderId    String                            // LmsUser.id
+  // recipientId is nullable now: group messages have groupId set instead.
+  recipientId String?                           // LmsUser.id (null for group messages)
+  // Group messaging (additive, nullable). When set, this message belongs to
+  // a LmsMessageGroup (course group) rather than a 1-to-1 conversation.
+  groupId     Int?
+  subject     String?
+  body        String
+  // Optional message category (additive, nullable). Used to tag system
+  // messages such as Exam Controller "Quick Message" teacher reminders.
+  category    String?
+  // Attachment support (additive, nullable). File/image sharing.
+  attachmentUrl  String?
+  attachmentName String?
+  attachmentType String?   // mime type or simple "image"/"file"
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  sender LmsUser @relation("LmsMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  group  LmsMessageGroup? @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([groupId])
+}
+
+// ------------------------------------------------------------
+// LMS MESSAGE GROUP — auto-created course chat groups. Each teacher
+// course (offering) gets one group; all enrolled students plus the
+// teacher are auto-members. Created/synced on demand.
+// ------------------------------------------------------------
+model LmsMessageGroup {
+  id          Int      @id @default(autoincrement())
+  name        String                            // e.g. "CS101 — Intro to CS"
+  offeringId  Int      @unique                  // one group per course offering
+  ownerId     String                            // teacher LmsUser.id
+  createdAt   DateTime @default(now())
+
+  members  LmsMessageGroupMember[]
+  messages LmsThreadMessage[]
+
+  @@index([ownerId])
+}
+
+model LmsMessageGroupMember {
+  id        Int      @id @default(autoincrement())
+  groupId   Int
+  userId    String                              // LmsUser.id
+  role      String   @default("member")         // "owner" | "member"
+  // Per-member read tracking: last message id this user has read in the group.
+  lastReadMessageId Int @default(0)
+  joinedAt  DateTime @default(now())
+
+  group LmsMessageGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+// LMS AUDIT LOG — records academic-core actions (create/update/
+// delete/grade/publish). Stores before/after JSON for traceability.
+// ------------------------------------------------------------
+model LmsAuditLog {
+  id          Int      @id @default(autoincrement())
+  actorId     String?                           // LmsUser.id
+  actorRole   String?
+  action      String                            // e.g. "ATTENDANCE_MARK"
+  entity      String                            // e.g. "AttendanceSession"
+  entityId    String?
+  beforeJson  String?
+  afterJson   String?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  actor LmsUser? @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+// ============================================================
+// STUDENT-MODULE SUPPORT MODELS (Phase 1)
+// All keyed on LmsUser.id. Additive — no existing rows affected.
+// ============================================================
+
+// CALENDAR EVENT — academic calendar entries. Can be global (audience)
+// or scoped to a specific offering/program. Students see global + their
+// own offerings' events. Authored by staff (teacher/coordinator/admin).
+model CalendarEvent {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  // CLASS | EXAM | ASSIGNMENT | QUIZ | HOLIDAY | EVENT | DEADLINE | RESULT
+  type        String   @default("EVENT")
+  date        String                          // ISO date "2026-09-01"
+  endDate     String?
+  startTime   String?                         // "09:00"
+  endTime     String?                         // "10:30"
+  location    String?
+  offeringId  Int?
+  audience    String   @default("ALL")        // ALL | STUDENTS | TEACHERS
+  authorId    String?                         // LmsUser.id
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([date])
+  @@index([offeringId])
+}
+
+// CLASS SCHEDULE SLOT — weekly recurring timetable entry for an offering.
+// Used to render the student/teacher weekly timetable.
+model ScheduleSlot {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  // 0=Sunday .. 6=Saturday
+  dayOfWeek   Int
+  startTime   String                          // "09:00"
+  endTime     String                          // "10:30"
+  room        String?
+  mode        String   @default("ONSITE")     // ONSITE | ONLINE
+  // THEORY | LAB. Lab slots are auto-created for courses with a Lab component
+  // and are always taught by the SAME instructor as the theory slot (they
+  // share the offering, so offering.teacherId governs both). Additive: legacy
+  // rows default to THEORY.
+  slotType    String   @default("THEORY")
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@index([offeringId])
+  @@index([dayOfWeek])
+}
+
+// LIVE CLASS — a scheduled/ongoing live session for an offering.
+model LiveClass {
+  id          Int      @id @default(autoincrement())
+  offeringId  Int
+  title       String
+  description String?
+  scheduledAt DateTime
+  durationMin Int      @default(60)
+  joinUrl     String?
+  // SCHEDULED | LIVE | ENDED | CANCELLED
+  status      String   @default("SCHEDULED")
+  recordingUrl String?
+  hostId      String?                          // LmsUser.id (teacher)
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  offering CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  attendance LiveClassAttendance[] @relation("LiveClassAttendance")
+
+  @@index([offeringId])
+  @@index([scheduledAt])
+}
+
+// ============================================================
+// LIVE CLASS ATTENDANCE (Requirement #2) — tracks each student's
+// participation in a BigBlueButton live class: join time, leave
+// time and computed duration. One row per join session; a student
+// may join multiple times (multiple rows) — analytics aggregate.
+// ============================================================
+model LiveClassAttendance {
+  id           Int       @id @default(autoincrement())
+  liveClassId  Int
+  studentId    String                            // LmsUser.id
+  joinedAt     DateTime  @default(now())
+  leftAt       DateTime?
+  durationSec  Int       @default(0)             // computed on leave
+  role         String    @default("attendee")    // attendee | moderator
+  meetingId    String?                            // BBB meetingID used
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  liveClass LiveClass @relation("LiveClassAttendance", fields: [liveClassId], references: [id], onDelete: Cascade)
+  student   LmsUser   @relation("LiveClassAttendee", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([liveClassId])
+  @@index([studentId])
+}
+
+// ============================================================
+// RECORDED LECTURE VIEW (additive) — tracks which recorded
+// lectures a student has watched, per offering. Used by the
+// enhanced Attendance module to compute the 60% recorded-lecture
+// component of overall attendance. One row per (student, lecture).
+//   lectureKey: stable id of the recorded lecture, e.g. "m12" for a
+//               CourseMaterial VIDEO or "lc7" for a LiveClass recording.
+// ============================================================
+model RecordedLectureView {
+  id          Int      @id @default(autoincrement())
+  studentId   String                            // LmsUser.id
+  offeringId  Int
+  lectureKey  String                            // "m<materialId>" | "lc<liveClassId>"
+  watched     Boolean  @default(true)
+  watchedAt   DateTime @default(now())
+  // Point 6 — automatic recorded-lecture attendance. We track the student's
+  // actual watch progress per lecture. `watchedSeconds` stores the FURTHEST
+  // point reached (monotonically increasing, so refreshing/reopening never
+  // resets it); `durationSeconds` is the lecture length; `progressPercent` is
+  // the derived completion %. Attendance auto-marks `watched=true` once
+  // progressPercent >= the configured threshold (default 70%).
+  watchedSeconds  Float  @default(0)
+  durationSeconds Float  @default(0)
+  progressPercent Float  @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([studentId, lectureKey])
+  @@index([studentId])
+  @@index([offeringId])
+}
+
+// ============================================================
+// STUDENT ACTIVITY (Requirement #7) — real-time activity log for
+// the student activity timeline. Records meaningful events such as
+// login, logout, assignment submissions, quiz attempts, attendance,
+// live-class participation, course access, announcement views and
+// AI Tutor usage. Searchable & filterable.
+// ============================================================
+model StudentActivity {
+  id          Int      @id @default(autoincrement())
+  studentId   String                            // LmsUser.id
+  // LOGIN | LOGOUT | ASSIGNMENT_SUBMIT | QUIZ_ATTEMPT | ATTENDANCE |
+  // LIVE_CLASS | COURSE_ACCESS | ANNOUNCEMENT_VIEW | AI_TUTOR | RESULT | OTHER
+  type        String
+  title       String
+  description String?
+  courseCode  String?
+  courseTitle String?
+  refType     String?                            // related entity type
+  refId       String?                            // related entity id
+  metadata    String?                            // JSON string for extra context
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  student LmsUser @relation("UserActivities", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ============================================================
+// AI TUTOR MESSAGE (Requirement #3) — persists the student's AI
+// Tutor conversation so history is available across sessions.
+// ============================================================
+model AiTutorMessage {
+  id          Int      @id @default(autoincrement())
+  studentId   String                            // LmsUser.id
+  role        String                            // user | assistant
+  content     String
+  courseCode  String?
+  courseTitle String?
+  createdAt   DateTime @default(now())
+
+  student LmsUser @relation("AiTutorMessages", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+  @@index([createdAt])
+}
+
+// STUDENT NOTE — personal sticky notes (per-student private).
+model StudentNote {
+  id          Int      @id @default(autoincrement())
+  studentId   String                           // LmsUser.id
+  title       String?
+  content     String
+  color       String   @default("yellow")
+  tag         String?
+  pinned      Boolean  @default(false)
+  reminderAt  DateTime?
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student LmsUser @relation("StudentNotes", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId])
+}
+
+// STUDENT APPEAL / REQUEST — academic requests (recheck, grievance,
+// document request, general). Raised by student, actioned by staff.
+model StudentAppeal {
+  id          Int      @id @default(autoincrement())
+  studentId   String                           // LmsUser.id
+  // RECHECK | GRIEVANCE | DOCUMENT | LEAVE | GENERAL | RETAKE
+  type        String   @default("GENERAL")
+  subject     String
+  description String
+  offeringId  Int?
+  // ----------------------------------------------------------------
+  // APPEAL ROUTING (additive, nullable for back-compat). A student
+  // addresses an appeal to ONE role. When TEACHER is chosen they also
+  // pick a specific teacher (targetUserId). When a non-teacher role is
+  // chosen the appeal is delivered only to staff holding that role for
+  // the student's department/program.
+  //   targetRole: TEACHER | COURSE_COORDINATOR | FOCAL_PERSON |
+  //               EXAM_CONTROLLER | PROVOST   (null = legacy)
+  //   targetUserId: specific LmsUser.id (the chosen teacher)
+  // ----------------------------------------------------------------
+  targetRole   String?
+  targetUserId String?
+  // OPEN | IN_REVIEW | RESOLVED | REJECTED
+  status      String   @default("OPEN")
+  response    String?
+  handledById String?                          // LmsUser.id
+  handledAt   DateTime?
+  filePath    String?
+  fileName    String?
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // ================================================================
+  // SUPPORT & GRIEVANCES UPGRADE (Section 2/9/11/12/20/22 of the LMS
+  // Support & Grievances master spec). ALL fields below are ADDITIVE
+  // and NULLABLE (or carry safe defaults) so every existing
+  // StudentAppeal row remains valid and continues to behave exactly as
+  // before. NONE of the legacy appeal behaviour is changed — the new
+  // portal is a superset layered on top of the existing appeal model.
+  //
+  //   caseCode   – public human-readable id e.g. GRV-2026-000124.
+  //                Immutable once assigned; never exposes the DB id.
+  //   caseType   – GRIEVANCE | SUPPORT | APPEAL | SUGGESTION | FEEDBACK.
+  //                Legacy rows (null) are treated as APPEAL for
+  //                back-compat because the module started as "Appeals".
+  //   category   – free-text category key (Assignment/Marks, Login, …).
+  //   priority   – LOW | MEDIUM | HIGH | URGENT (default MEDIUM).
+  //   Context    – optional structured links to the LMS entity a case
+  //                is about (course / assignment / quiz / exam / result).
+  //   SLA        – slaDueAt computed from priority; slaBreached flag.
+  //   Feedback   – student satisfaction after resolution.
+  // ================================================================
+  caseCode      String?   @unique
+  caseType      String?   // GRIEVANCE | SUPPORT | APPEAL | SUGGESTION | FEEDBACK (null = legacy APPEAL)
+  category      String?
+  priority      String    @default("MEDIUM") // LOW | MEDIUM | HIGH | URGENT
+
+  // Context (all optional — attached automatically from the LMS page a
+  // case is raised from; free-text label kept for display convenience).
+  contextType   String?   // COURSE | ASSIGNMENT | QUIZ | EXAM | RESULT | ATTENDANCE | LIVE_CLASS | MATERIAL
+  contextLabel  String?
+  courseCode    String?
+  assignmentId  Int?
+  submissionId  Int?
+  quizId        Int?
+  examId        Int?
+  resultId      Int?
+
+  // Assignment / reassignment (which staff user currently owns the case).
+  assignedUserId String?  // LmsUser.id (currently responsible staff member)
+  assignedAt     DateTime?
+
+  // SLA tracking.
+  slaDueAt      DateTime?
+  slaBreached   Boolean   @default(false)
+
+  // Escalation.
+  escalated     Boolean   @default(false)
+  escalatedAt   DateTime?
+
+  // Student satisfaction feedback (Section 22).
+  feedbackResolved  Boolean?   // student says the issue was resolved (Yes/No)
+  feedbackRating    Int?       // 1..5
+  feedbackComment   String?
+  feedbackAt        DateTime?
+
+  student LmsUser @relation("StudentAppeals", fields: [studentId], references: [id], onDelete: Cascade)
+
+  // Support & Grievances child collections (additive).
+  messages      GrievanceMessage[]
+  internalNotes GrievanceInternalNote[]
+  history       GrievanceStatusHistory[]
+
+  @@index([studentId])
+  @@index([status])
+  @@index([targetRole])
+  @@index([targetUserId])
+  @@index([caseType])
+  @@index([priority])
+  @@index([assignedUserId])
+}
+
+// ================================================================
+// SUPPORT & GRIEVANCES — CONVERSATION THREAD (Section 15)
+// A case supports a two-way conversation between the student and the
+// assigned staff. Additive model; does not affect any existing table.
+// ================================================================
+model GrievanceMessage {
+  id          Int      @id @default(autoincrement())
+  appealId    Int
+  senderId    String                            // LmsUser.id
+  senderRole  String                            // Student | Teacher | CourseCoordinator | ...
+  body        String
+  filePath    String?
+  fileName    String?
+  isReadByStudent Boolean @default(false)
+  isReadByStaff   Boolean @default(false)
+  createdAt   DateTime @default(now())
+
+  appeal StudentAppeal @relation(fields: [appealId], references: [id], onDelete: Cascade)
+
+  @@index([appealId])
+  @@index([senderId])
+}
+
+// ================================================================
+// SUPPORT & GRIEVANCES — INTERNAL NOTES (Section 16)
+// Staff-only notes. NEVER exposed to students — this is enforced in
+// application code (students never query this table). Additive model.
+// ================================================================
+model GrievanceInternalNote {
+  id         Int      @id @default(autoincrement())
+  appealId   Int
+  authorId   String                             // LmsUser.id (staff)
+  authorRole String
+  body       String
+  createdAt  DateTime @default(now())
+
+  appeal StudentAppeal @relation(fields: [appealId], references: [id], onDelete: Cascade)
+
+  @@index([appealId])
+}
+
+// ================================================================
+// SUPPORT & GRIEVANCES — STATUS / ASSIGNMENT HISTORY (Section 13/19/25)
+// A durable, append-only trail of every meaningful change to a case
+// (status change, assignment, reassignment, escalation, priority
+// change, feedback). Complements the global LmsAuditLog with a
+// case-scoped, student-safe timeline. Additive model.
+// ================================================================
+model GrievanceStatusHistory {
+  id         Int      @id @default(autoincrement())
+  appealId   Int
+  actorId    String?                            // LmsUser.id (null = system/SLA)
+  actorRole  String?
+  action     String                             // STATUS_CHANGE | ASSIGN | REASSIGN | ESCALATE | PRIORITY | REOPEN | FEEDBACK | CREATE
+  fromValue  String?
+  toValue    String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  appeal StudentAppeal @relation(fields: [appealId], references: [id], onDelete: Cascade)
+
+  @@index([appealId])
+}
+
+// SURVEY — feedback/evaluation survey targeted at students.
+model Survey {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  // COURSE_EVAL | TEACHER_EVAL | GENERAL | QEC
+  type        String   @default("GENERAL")
+  offeringId  Int?
+  // QEC department-wise scoping (additive, nullable — existing rows stay valid,
+  // student delivery is unaffected). scope: UNIVERSITY (overall / all depts) |
+  // DEPARTMENT (one specific department). department = target dept name when scoped.
+  scope       String   @default("UNIVERSITY")
+  department  String?
+  audience    String   @default("STUDENTS")
+  isAnonymous Boolean  @default(true)
+  opensAt     DateTime?
+  closesAt    DateTime?
+  isActive    Boolean  @default(true)
+  authorId    String?                          // LmsUser.id
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions SurveyQuestion[]
+  responses SurveyResponse[]
+
+  @@index([offeringId])
+}
+
+model SurveyQuestion {
+  id          Int      @id @default(autoincrement())
+  surveyId    Int
+  text        String
+  // RATING | MCQ | TEXT | YESNO
+  type        String   @default("RATING")
+  optionsJson String   @default("[]")
+  required    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([surveyId])
+}
+
+model SurveyResponse {
+  id          Int      @id @default(autoincrement())
+  surveyId    Int
+  studentId   String                           // LmsUser.id
+  answersJson String   @default("{}")           // JSON map questionId -> answer
+  submittedAt DateTime @default(now())
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@unique([surveyId, studentId])
+  @@index([surveyId])
+  @@index([studentId])
+}
+
+// NOTIFICATION PREFERENCES — per-student settings.
+model NotificationPref {
+  id              Int      @id @default(autoincrement())
+  studentId       String   @unique             // LmsUser.id
+  emailEnabled    Boolean  @default(true)
+  pushEnabled     Boolean  @default(true)
+  assignmentAlerts Boolean @default(true)
+  quizAlerts      Boolean  @default(true)
+  resultAlerts    Boolean  @default(true)
+  announcementAlerts Boolean @default(true)
+  language        String   @default("en")
+  theme           String   @default("system")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// LMS NOTIFICATION — in-app notifications for an LMS user.
+model LmsNotification {
+  id          Int      @id @default(autoincrement())
+  userId      String                           // LmsUser.id
+  title       String
+  message     String
+  // INFO | ASSIGNMENT | QUIZ | RESULT | ANNOUNCEMENT | MESSAGE | FEE | APPEAL
+  type        String   @default("INFO")
+  link        String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// LMS FEE CHALLAN — semester fee challan for an LMS student.
+model LmsFeeChallan {
+  id          Int      @id @default(autoincrement())
+  studentId   String                           // LmsUser.id
+  termId      Int?
+  challanNo   String   @unique
+  title       String
+  // JSON array of { label, amount }
+  lineItems   String   @default("[]")
+  totalAmount Float    @default(0)
+  dueDate     String?
+  // UNPAID | PAID | OVERDUE | WAIVED
+  status      String   @default("UNPAID")
+  paidAt      DateTime?
+  paymentRef  String?
+  // --- Provost finance fields (additive, all nullable / defaulted) ---
+  // feeType: SEMESTER | EXAMINATION | OTHER. Scope snapshot fields are a
+  // point-in-time copy of the student's program/department/semester/section
+  // so fee records remain filterable & accurate even if the student moves.
+  feeType        String?  // SEMESTER | EXAMINATION
+  program        String?  // programShortForm e.g. "ADCS"
+  department     String?
+  semester       Int?     // semester number snapshot
+  section        String?  // section name snapshot e.g. "A"
+  description    String?
+  // Source announcement that auto-generated this challan (if any).
+  sourceAnnouncementId Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+  @@index([feeType])
+  @@index([sourceAnnouncementId])
+}
+
+// ============================================================
+// LMS FEE ANNOUNCEMENT (Provost finance) — a structured, scoped fee
+// announcement raised by the Provost. On creation it auto-generates a
+// LmsFeeChallan in each matching student's Account Book. Additive,
+// free-standing (no FK relations added to existing models).
+// ============================================================
+model LmsFeeAnnouncement {
+  id           Int      @id @default(autoincrement())
+  // SEMESTER | EXAMINATION
+  feeType      String
+  title        String
+  description  String?
+  amount       Float    @default(0)
+  dueDate      String?
+  // Scope: UNIVERSITY | DEPARTMENT | PROGRAM | SEMESTER | SECTION
+  scope        String   @default("UNIVERSITY")
+  department   String?
+  program      String?  // programShortForm
+  semester     Int?
+  section      String?
+  // ACTIVE | CLOSED
+  status       String   @default("ACTIVE")
+  createdById  String                            // LmsUser.id (Provost)
+  // How many challans this announcement generated (for reporting).
+  studentCount Int      @default(0)
+  totalBilled  Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([feeType])
+  @@index([status])
+  @@index([createdById])
+}
+
+// ============================================================
+// LMS STUDENT BLOCK (Provost finance) — block/unblock history for a
+// student (e.g. non-payment of fees). Each row is one block→unblock
+// lifecycle entry. The student's active block = latest row with
+// unblockedAt = null. Additive, free-standing.
+// ============================================================
+model LmsStudentBlock {
+  id           Int      @id @default(autoincrement())
+  studentId    String                            // LmsUser.id
+  reason       String
+  // Academic position snapshot captured at block time so the student
+  // resumes from the exact same point after unblock.
+  semester     Int?
+  section      String?
+  program      String?
+  department   String?
+  blockedById  String                            // LmsUser.id (Provost)
+  blockedAt    DateTime @default(now())
+  unblockedById String?
+  unblockedAt  DateTime?
+  unblockNote  String?
+
+  @@index([studentId])
+  @@index([unblockedAt])
+}
+
+// ============================================================
+// GOVERNANCE / WORKFLOW MODELS  (Phases 3–7)
+// ------------------------------------------------------------
+// Additive models supporting the Course Coordinator, Focal Person,
+// Exam Controller, Director QEC and Provost role workflows. All keyed
+// on LmsUser.id (String) and free-standing (no FK relations added to
+// existing models) to remain fully non-breaking.
+// ============================================================
+
+// APPROVAL REQUEST — a generic approval/workflow item that moves through
+// an escalation chain (Teacher → Coordinator → Focal → Exam → QEC → Provost).
+// Used for course approvals, result approvals, grade-change approvals,
+// faculty approvals, policy approvals, fee approvals, etc.
+model ApprovalRequest {
+  id            Int      @id @default(autoincrement())
+  // COURSE | OFFERING | FACULTY | GRADE_CHANGE | RESULT | RECHECK | POLICY |
+  // FEE | ACADEMIC | STUDENT_CASE | EXAM_SCHEDULE | PAPER | TRANSCRIPT | OTHER
+  type          String   @default("ACADEMIC")
+  title         String
+  description   String?
+  // Free-form reference to the subject entity (e.g. "CourseOffering:12").
+  entity        String?
+  entityId      String?
+  payloadJson   String   @default("{}")        // proposed change snapshot
+  // Who raised it + the role that should action it next.
+  requestedById String                          // LmsUser.id
+  requestedRole String?
+  assignedRole  String                          // role expected to decide (e.g. CourseCoordinator)
+  // PENDING | APPROVED | REJECTED | ESCALATED | CANCELLED | IN_REVIEW
+  status        String   @default("PENDING")
+  priority      String   @default("NORMAL")     // LOW | NORMAL | HIGH | URGENT
+  decidedById   String?                          // LmsUser.id
+  decidedRole   String?
+  decisionNote  String?
+  decidedAt     DateTime?
+  // Escalation linkage (self-reference by id; no FK to keep it simple).
+  escalatedToRole String?
+  dueDate       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  history ApprovalHistory[]
+
+  @@index([type])
+  @@index([status])
+  @@index([assignedRole])
+  @@index([requestedById])
+}
+
+// APPROVAL HISTORY — append-only audit of every state transition on an
+// ApprovalRequest (submitted, reviewed, approved, rejected, escalated).
+model ApprovalHistory {
+  id          Int      @id @default(autoincrement())
+  requestId   Int
+  action      String                            // SUBMITTED | APPROVED | REJECTED | ESCALATED | COMMENT | REASSIGNED
+  actorId     String?                           // LmsUser.id
+  actorRole   String?
+  fromStatus  String?
+  toStatus    String?
+  note        String?
+  createdAt   DateTime @default(now())
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+}
+
+// ESCALATION — a tracked issue escalated up the academic hierarchy.
+// Distinct from ApprovalRequest: an escalation is a problem/case to be
+// resolved (student complaint, faculty issue, risk alert) rather than a
+// proposed change to be approved.
+model Escalation {
+  id            Int      @id @default(autoincrement())
+  // STUDENT_CASE | FACULTY_ISSUE | ACADEMIC | DISCIPLINE | RISK | COMPLAINT | OTHER
+  category      String   @default("ACADEMIC")
+  subject       String
+  description   String?
+  severity      String   @default("MEDIUM")     // LOW | MEDIUM | HIGH | CRITICAL
+  // OPEN | IN_PROGRESS | ESCALATED | RESOLVED | CLOSED
+  status        String   @default("OPEN")
+  raisedById    String?                          // LmsUser.id
+  raisedRole    String?
+  // Current owner role in the escalation matrix.
+  currentRole   String   @default("CourseCoordinator")
+  assignedToId  String?                          // LmsUser.id (optional specific owner)
+  // Optional subject references.
+  studentId     String?                          // LmsUser.id
+  offeringId    Int?
+  resolution    String?
+  resolvedById  String?
+  resolvedAt    DateTime?
+  dueDate       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  events EscalationEvent[]
+
+  @@index([category])
+  @@index([status])
+  @@index([currentRole])
+}
+
+model EscalationEvent {
+  id           Int      @id @default(autoincrement())
+  escalationId Int
+  action       String                            // CREATED | ESCALATED | COMMENT | REASSIGNED | RESOLVED | CLOSED
+  actorId      String?
+  actorRole    String?
+  fromRole     String?
+  toRole       String?
+  note         String?
+  createdAt    DateTime @default(now())
+
+  escalation Escalation @relation(fields: [escalationId], references: [id], onDelete: Cascade)
+
+  @@index([escalationId])
+}
+
+// EXAM SCHEDULE — a datesheet entry (one paper for an offering in a term).
+model ExamSchedule {
+  id          Int      @id @default(autoincrement())
+  termId      Int?
+  offeringId  Int?
+  // MID | FINAL | QUIZ | RETAKE | SPECIAL
+  examType    String   @default("FINAL")
+  title       String
+  date        String                             // ISO date
+  startTime   String?                            // "09:00"
+  endTime     String?                            // "12:00"
+  room        String?
+  totalMarks  Float    @default(100)
+  // DRAFT | PUBLISHED | APPROVED | LOCKED | CANCELLED
+  status      String   @default("DRAFT")
+  approvedById String?
+  approvedAt  DateTime?
+  createdById String?
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seatings ExamSeating[]
+  invigilations ExamInvigilation[]
+  attendances ExamAttendance[] @relation("ExamAttendanceExam")
+
+  @@index([termId])
+  @@index([offeringId])
+  @@index([examType])
+  @@index([status])
+}
+
+// EXAM SEATING — room allocation + capacity for an exam schedule.
+model ExamSeating {
+  id          Int      @id @default(autoincrement())
+  examId      Int
+  room        String
+  capacity    Int      @default(40)
+  allocated   Int      @default(0)
+  rowsCols    String?                            // JSON layout if needed
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  exam ExamSchedule @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+}
+
+// EXAM INVIGILATION — invigilator assignment for an exam.
+model ExamInvigilation {
+  id          Int      @id @default(autoincrement())
+  examId      Int
+  invigilatorId String                           // LmsUser.id (Teacher)
+  room        String?
+  role        String   @default("INVIGILATOR")  // INVIGILATOR | CHIEF | RELIEF
+  createdAt   DateTime @default(now())
+
+  exam ExamSchedule @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@index([examId])
+  @@index([invigilatorId])
+}
+
+// EXAM PAPER — secure paper submission + approval + version tracking.
+model ExamPaper {
+  id          Int      @id @default(autoincrement())
+  examId      Int?
+  offeringId  Int?
+  title       String
+  version     Int      @default(1)
+  filePath    String?
+  fileName    String?
+  submittedById String?                          // LmsUser.id (Teacher)
+  // SUBMITTED | UNDER_REVIEW | APPROVED | REJECTED | LOCKED
+  status      String   @default("SUBMITTED")
+  reviewedById String?
+  reviewNote  String?
+  reviewedAt  DateTime?
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([examId])
+  @@index([offeringId])
+  @@index([status])
+}
+
+// RECHECK REQUEST — a student's result-rechecking workflow item handled
+// by the Exam Controller (separate from generic StudentAppeal).
+model RecheckRequest {
+  id          Int      @id @default(autoincrement())
+  studentId   String                             // LmsUser.id
+  offeringId  Int
+  // MID | FINAL | TOTAL
+  component   String   @default("FINAL")
+  reason      String
+  // SUBMITTED | IN_REVIEW | RESOLVED_CHANGED | RESOLVED_UNCHANGED | REJECTED
+  status      String   @default("SUBMITTED")
+  oldMarks    Float?
+  newMarks    Float?
+  feeChallanNo String?
+  handledById String?
+  resolution  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([offeringId])
+  @@index([status])
+}
+
+// RESULT BATCH — a freeze/lock record for a term's results (Exam Controller).
+model ResultBatch {
+  id          Int      @id @default(autoincrement())
+  termId      Int
+  title       String
+  // OPEN | COMPILED | VERIFIED | FROZEN | PUBLISHED | LOCKED
+  status      String   @default("OPEN")
+  totalResults Int     @default(0)
+  passCount   Int      @default(0)
+  failCount   Int      @default(0)
+  frozenById  String?
+  frozenAt    DateTime?
+  publishedById String?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([termId])
+  @@index([status])
+}
+
+// ============================================================
+// DATE SHEET (Exam Controller) — a published examination date sheet.
+//   A DateSheet groups multiple DateSheetEntry rows (one per exam slot).
+//   Supports auto-generation (sequenced slots with gap days) AND manual
+//   entry. Each entry maps an offering/course to a date + time slot.
+// ============================================================
+model DateSheet {
+  id          Int      @id @default(autoincrement())
+  termId      Int?
+  title       String
+  examType    String   @default("FINAL")           // MID | FINAL | QUIZ | RETAKE | SPECIAL
+  program     String?
+  programShortForm String?
+  semester    String?                               // e.g. "1", "2", or "ALL"
+  startDate   String?                               // ISO date
+  durationMin Int      @default(180)
+  gapDays     Int      @default(1)
+  slotsPerDay Int      @default(2)
+  // DRAFT | PUBLISHED
+  status      String   @default("DRAFT")
+  generated   Boolean  @default(false)              // true = auto-generated
+  createdById String?
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  entries DateSheetEntry[]
+
+  @@index([termId])
+  @@index([status])
+}
+
+// DATE SHEET ENTRY — a single exam slot inside a date sheet.
+model DateSheetEntry {
+  id          Int      @id @default(autoincrement())
+  dateSheetId Int
+  offeringId  Int?
+  courseCode  String?
+  courseTitle String?
+  semester    String?
+  section     String?
+  date        String                               // ISO date
+  startTime   String?                              // "09:00"
+  endTime     String?                              // "12:00"
+  room        String?
+  createdAt   DateTime @default(now())
+
+  dateSheet DateSheet @relation(fields: [dateSheetId], references: [id], onDelete: Cascade)
+
+  @@index([dateSheetId])
+  @@index([offeringId])
+}
+
+// ============================================================
+// GAZETTE (Exam Controller) — a published gazette of compiled results
+//   for a term/program/semester/section. Requires approval before
+//   publishing (Approve then Publish workflow).
+// ============================================================
+model Gazette {
+  id          Int      @id @default(autoincrement())
+  termId      Int?
+  title       String
+  department  String?
+  program     String?
+  programShortForm String?
+  semester    String?
+  section     String?
+  // DRAFT | APPROVED | PUBLISHED
+  status      String   @default("DRAFT")
+  totalStudents Int    @default(0)
+  passCount   Int      @default(0)
+  failCount   Int      @default(0)
+  approvedById String?
+  approvedAt  DateTime?
+  publishedById String?
+  publishedAt DateTime?
+  createdById String?
+  isDeleted   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([termId])
+  @@index([status])
+}
+
+// QUALITY METRIC — a recorded QEC quality/accreditation metric snapshot.
+model QualityMetric {
+  id          Int      @id @default(autoincrement())
+  // COURSE | TEACHER | PROGRAM | DEPARTMENT | INSTITUTION
+  scope       String   @default("COURSE")
+  refId       String?                            // offeringId/teacherId/programId as string
+  metric      String                             // e.g. "AvgCourseEvalScore"
+  value       Float    @default(0)
+  target      Float?
+  termId      Int?
+  periodLabel String?
+  notes       String?
+  recordedById String?
+  createdAt   DateTime @default(now())
+
+  @@index([scope])
+  @@index([metric])
+}
+
+// COMPLIANCE ITEM — QEC accreditation/compliance checklist item.
+model ComplianceItem {
+  id          Int      @id @default(autoincrement())
+  category    String   @default("GENERAL")       // PEC | NCEAC | HEC | INTERNAL | GENERAL
+  title       String
+  description String?
+  // PENDING | IN_PROGRESS | COMPLIANT | NON_COMPLIANT | NA
+  status      String   @default("PENDING")
+  dueDate     String?
+  ownerRole   String?
+  evidenceUrl String?
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+}
+
+// IMPROVEMENT PLAN — QEC quality improvement plan tied to a metric/finding.
+model ImprovementPlan {
+  id          Int      @id @default(autoincrement())
+  title       String
+  area        String?                            // course/teacher/program area
+  finding     String?
+  actionPlan  String?
+  // OPEN | IN_PROGRESS | COMPLETED | CANCELLED
+  status      String   @default("OPEN")
+  ownerRole   String?
+  targetDate  String?
+  progress    Int      @default(0)               // 0..100
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+}
+
+// STRATEGIC INITIATIVE — Provost-level strategic planning / decision item.
+model StrategicInitiative {
+  id          Int      @id @default(autoincrement())
+  title       String
+  category    String   @default("STRATEGIC")     // STRATEGIC | POLICY | FINANCE | ACADEMIC | INFRASTRUCTURE
+  description String?
+  // PROPOSED | APPROVED | IN_PROGRESS | COMPLETED | ON_HOLD | REJECTED
+  status      String   @default("PROPOSED")
+  priority    String   @default("NORMAL")
+  ownerRole   String?
+  budget      Float?
+  progress    Int      @default(0)
+  startDate   String?
+  targetDate  String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+}
+
+// POLICY — Provost-managed institutional policy document/record.
+model Policy {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  title       String
+  category    String   @default("ACADEMIC")
+  body        String?
+  version     Int      @default(1)
+  // DRAFT | UNDER_REVIEW | APPROVED | PUBLISHED | ARCHIVED
+  status      String   @default("DRAFT")
+  effectiveDate String?
+  approvedById String?
+  approvedAt  DateTime?
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([status])
+}
+
+// ============================================================
+// PHASE 5 (Exam Controller) — additive models for Exam Operations
+// (attendance verification) and the Transcript System (issued,
+// verifiable transcripts). These are purely additive and do not
+// alter any existing model.
+// ============================================================
+
+// EXAM ATTENDANCE — per-student attendance verification for a
+// scheduled exam (Exam Operations). One row per (examId, studentId).
+model ExamAttendance {
+  id          Int      @id @default(autoincrement())
+  examId      Int
+  studentId   String                             // LmsUser.id (Student)
+  offeringId  Int?
+  // PRESENT | ABSENT | LATE | UFM | EXEMPT
+  status      String   @default("PRESENT")
+  room        String?
+  seatNo      String?
+  remarks     String?
+  verifiedById String?                            // LmsUser.id (ExamController/Invigilator)
+  verifiedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  exam ExamSchedule @relation("ExamAttendanceExam", fields: [examId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, studentId])
+  @@index([examId])
+  @@index([studentId])
+  @@index([status])
+}
+
+// TRANSCRIPT RECORD — an issued, verifiable transcript snapshot for
+// a student. Stores the computed CGPA + a JSON payload of the
+// semester-wise results at issue time so the document is immutable
+// and independently verifiable via `verificationCode`.
+model TranscriptRecord {
+  id               Int      @id @default(autoincrement())
+  studentId        String                          // LmsUser.id (Student)
+  verificationCode String   @unique                // public verify token
+  // SEMESTER | FINAL
+  kind             String   @default("FINAL")
+  termId           Int?
+  cgpa             Float    @default(0)
+  totalCredits     Int      @default(0)
+  payloadJson      String                          // JSON snapshot of semesters/courses
+  // ISSUED | APPROVED | REVOKED
+  status           String   @default("ISSUED")
+  issuedById       String?                         // LmsUser.id (ExamController)
+  approvedById     String?
+  approvedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([status])
+}
+
+// ============================================================
+// COURSE COORDINATOR — TEACHER REPLACEMENT (additive, full record)
+// ------------------------------------------------------------
+// A formal teacher-replacement request with its own lifecycle
+// (Pending -> Approved/Rejected), conflict-validated against the
+// timetable, and a permanent audit history. Distinct from the
+// lightweight bulk /teachers/replace reassignment endpoint.
+// ============================================================
+model TeacherReplacement {
+  id                   Int       @id @default(autoincrement())
+  originalTeacherId    String
+  replacementTeacherId String
+  offeringId           Int?
+  sectionId            Int?
+  courseLabel          String?
+  sectionLabel         String?
+  termLabel            String?
+  date                 String?
+  timeSlot             String?
+  reason               String
+  status               String    @default("PENDING")
+  decisionNote         String?
+  decidedById          String?
+  decidedAt            DateTime?
+  applied              Boolean   @default(false)
+  createdById          String
+  isDeleted            Boolean   @default(false)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([originalTeacherId])
+  @@index([replacementTeacherId])
+  @@index([offeringId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================
+// COURSE COORDINATOR — CROSS-DEPARTMENT INSTRUCTOR LOAN REQUEST
+//  The ONLY sanctioned cross-department mechanism. Workflow:
+//   1. Requesting dept's coordinator creates a request to the coordinator
+//      of the department that OWNS the desired instructor (status PENDING).
+//   2. Owning coordinator APPROVES a specific instructor (approvedInstructorId)
+//      or REJECTS the request.
+//   3. Once APPROVED, the requesting dept can assign a course to the
+//      borrowed instructor (enforced via resolveAssignableTeacherIds).
+// ============================================================
+model InstructorLoanRequest {
+  id                     Int       @id @default(autoincrement())
+  // Department context (stored as the coordinators' department strings).
+  requestingDepartment   String
+  owningDepartment       String
+  // Coordinator user-ids on each side.
+  requestingCoordinatorId String
+  owningCoordinatorId     String?
+  // The instructor the requester is interested in (optional at request time),
+  // and the specific instructor the owning coordinator approves.
+  requestedInstructorId  String?
+  approvedInstructorId   String?
+  // Optional target course offering the borrowed instructor is wanted for.
+  courseOfferingId       Int?
+  courseLabel            String?
+  // Point 13 — free-text "Other" entries when the target department/course
+  // is not in the existing dropdowns (additive, all optional).
+  customDepartment       String?
+  customCourse           String?
+  reason                 String?
+  status                 String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  decisionNote           String?
+  decidedAt              DateTime?
+  isDeleted              Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([requestingDepartment])
+  @@index([owningDepartment])
+  @@index([requestingCoordinatorId])
+  @@index([owningCoordinatorId])
+  @@index([status])
+  @@index([approvedInstructorId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// COURSE COORDINATOR — ASSESSMENT WEIGHTAGE (Weightage module)
+// ------------------------------------------------------------
+// One row per course capturing the assessment weightage configuration
+// the coordinator sets (semester-wise + program-wise; semester/program
+// are derived from the course itself). Fully additive — no existing
+// model is modified. Per-item weightages are stored as JSON arrays of
+// numbers (e.g. quizItems = "[5,5,5]"). labTaskCount / labTaskWeight
+// are only meaningful (and only shown in the UI) when the course has a
+// Lab component (LmsCourse.hasLab === true).
+// ============================================================
+// ============================================================
+// EXACT UNIVERSITY TEST DATASET
+// Isolated additive tables used by prisma/seedUniversityDataset.js so the
+// requested relational shape can be represented without changing live
+// Admission or LMS workflows.
+// ============================================================
+model SeedDepartment {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  code        String   @unique
+  createdById Int
+  createdAt   DateTime @default(now())
+
+  createdBy User          @relation(fields: [createdById], references: [id])
+  programs  SeedProgram[]
+  students  SeedStudent[]
+  teachers  SeedTeacher[]
+}
+
+model SeedProgram {
+  id                Int      @id @default(autoincrement())
+  name              String
+  code              String   @unique
+  departmentId      Int      @unique
+  durationSemesters Int      @default(4)
+  totalCredits      Int      @default(72)
+
+  department SeedDepartment @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  semesters  SeedSemester[]
+  students   SeedStudent[]
+  courses    SeedCourse[]
+}
+
+model SeedSemester {
+  id             Int @id @default(autoincrement())
+  programId      Int
+  semesterNumber Int
+  creditHours    Int @default(18)
+
+  program  SeedProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+  students SeedStudent[]
+
+  @@unique([programId, semesterNumber])
+}
+
+model SeedStudent {
+  id             Int      @id @default(autoincrement())
+  name           String
+  rollNo         String   @unique
+  email          String   @unique
+  departmentId   Int
+  programId      Int
+  semesterId     Int
+  status         String   @default("active")
+  enrollmentDate DateTime
+
+  department SeedDepartment @relation(fields: [departmentId], references: [id])
+  program    SeedProgram    @relation(fields: [programId], references: [id])
+  semester   SeedSemester   @relation(fields: [semesterId], references: [id])
+
+  @@index([departmentId])
+  @@index([programId])
+  @@index([semesterId])
+}
+
+model SeedTeacher {
+  id            Int      @id @default(autoincrement())
+  name          String
+  email         String   @unique
+  departmentId  Int
+  designation   String
+  qualification String
+  joiningDate   DateTime
+
+  department SeedDepartment @relation(fields: [departmentId], references: [id])
+
+  @@index([departmentId])
+}
+
+model SeedCourse {
+  id             Int    @id @default(autoincrement())
+  courseCode     String @unique
+  title          String
+  creditHours    Int    @default(3)
+  semesterNumber Int
+  programId      Int
+  prerequisite   String?
+
+  program SeedProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@index([programId])
+  @@index([semesterNumber])
+}
+
+model CourseWeightage {
+  id             Int      @id @default(autoincrement())
+  courseId       Int      @unique
+  // Section-level weightages (percent). midWeight + finalWeight + quizWeight
+  // + assignmentWeight (+ labTaskWeight when hasLab) should total 100.
+  midWeight        Float  @default(25)
+  finalWeight      Float  @default(40)
+  quizWeight       Float  @default(15)
+  assignmentWeight Float  @default(20)
+  labTaskWeight    Float  @default(0)
+  // Semester Project (lab) weightage (percent). Only meaningful when the
+  // course has a Lab component (LmsCourse.hasLab === true). Coordinator-
+  // adjustable inside the Weightage module (Lab Management — Req 1.3).
+  semesterProjectWeight Float @default(0)
+  // Configurable counts.
+  quizCount        Int    @default(0)
+  assignmentCount  Int    @default(0)
+  labTaskCount     Int    @default(0)
+  // Per-item weightage breakdown, JSON arrays of numbers. Null = split evenly.
+  quizItems        String?
+  assignmentItems  String?
+  labTaskItems     String?
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  course LmsCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId])
+}
+
+// ============================================================
+// COURSE COORDINATOR — SCHEME OF STUDY (drag & drop builder)
+// ============================================================
+model SchemeOfStudy {
+  id          Int       @id @default(autoincrement())
+  programId   Int
+  name        String
+  description String?
+  version     Int       @default(1)
+  isActive    Boolean   @default(true)
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  program  LmsProgram      @relation(fields: [programId], references: [id], onDelete: Cascade)
+  items    SchemeCourse[]
+  versions SchemeVersion[]
+
+  @@index([programId])
+}
+
+model SchemeCourse {
+  id         Int      @id @default(autoincrement())
+  schemeId   Int
+  courseId   Int
+  semester   Int
+  orderIndex Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  scheme SchemeOfStudy @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  course LmsCourse     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([schemeId, courseId])
+  @@index([schemeId])
+  @@index([courseId])
+  @@index([semester])
+}
+
+model SchemeVersion {
+  id           Int      @id @default(autoincrement())
+  schemeId     Int
+  version      Int
+  snapshotJson String
+  changedById  String?
+  changeNote   String?
+  createdAt    DateTime @default(now())
+
+  scheme SchemeOfStudy @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+
+  @@index([schemeId])
+}
+
+// ============================================================
+// ============================================================
+//  SUPER ADMIN MODULE — additive, non-destructive models.
+//  Every model below is NEW. No existing table is modified.
+//  Designed so PostgreSQL migration is a provider change only.
+// ============================================================
+// ============================================================
+
+// University / institution profile. Single row in practice but
+// modelled as a table so it can be edited and versioned.
+model UniversityProfile {
+  id            Int      @id @default(autoincrement())
+  name          String   @default("Abbottabad University of Science & Technology")
+  shortName     String?
+  logoUrl       String?
+  address       String?
+  city          String?
+  province      String?
+  country       String?  @default("Pakistan")
+  phone         String?
+  email         String?
+  website       String?
+  accreditation String?
+  establishedYear String?
+  visionMission String?
+  updatedBy     Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Campuses & study centers.
+model Campus {
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String?
+  type      String   @default("Campus") // Campus | Study Center
+  location  String?
+  city      String?
+  address   String?
+  phone     String?
+  email     String?
+  isActive  Boolean  @default(true)
+  createdBy Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Academic sessions / batches (Fall 2026, Spring 2027, ...).
+model AcademicSession {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean  @default(false)
+  isArchived Boolean @default(false)
+  createdBy Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Super-admin level admission cycle configuration (additive — separate
+// from the existing AdmissionCycle model used by the admissions flow).
+model SaAdmissionCycle {
+  id            Int      @id @default(autoincrement())
+  name          String
+  programId     Int?
+  batch         String?
+  openDate      DateTime?
+  closeDate     DateTime?
+  isActive      Boolean  @default(false)
+  configuration String?  // JSON blob (documents, deadlines, merit, fees)
+  createdBy     Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// Grading scale (A/B/C/D/F → GPA points), optionally per-program.
+model SaGradingScale {
+  id        Int      @id @default(autoincrement())
+  grade     String
+  gpaPoints Float
+  minMarks  Float
+  maxMarks  Float
+  programId Int?
+  createdBy Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Generic key/value system configuration store.
+model SystemConfiguration {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String?
+  description String?
+  updatedBy   Int?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+}
+
+// System-wide password policy (single row).
+model PasswordPolicy {
+  id               Int      @id @default(autoincrement())
+  minLength        Int      @default(8)
+  requireUppercase Boolean  @default(true)
+  requireLowercase Boolean  @default(true)
+  requireNumber    Boolean  @default(true)
+  requireSpecial   Boolean  @default(true)
+  maxFailedAttempts Int     @default(5)
+  sessionTimeout   Int      @default(30) // minutes
+  twoFactorEnabled Boolean  @default(false)
+  updatedBy        Int?
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+}
+
+// System-wide announcements (separate from the LMS-scoped Announcement
+// model to avoid touching existing behaviour).
+model SystemAnnouncement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  content     String
+  targetRole  String   @default("ALL") // ALL | <role value> | <comma list>
+  targetSystem String  @default("ALL") // ALL | admissions | lms
+  priority    String   @default("normal") // normal | high | critical
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  isActive    Boolean  @default(true)
+  createdBy   Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Permanent log of every override action. Never deleted.
+model OverrideLog {
+  id            Int      @id @default(autoincrement())
+  overriddenBy  Int
+  overriddenByName String?
+  targetModule  String
+  targetId      String?
+  action        String?
+  originalValue String?  // JSON
+  newValue      String?  // JSON
+  reason        String
+  ipAddress     String?
+  createdAt     DateTime @default(now())
+
+  @@index([targetModule])
+  @@index([overriddenBy])
+}
+
+// Maintenance mode state (single active row at a time).
+model SystemMaintenanceMode {
+  id         Int      @id @default(autoincrement())
+  isEnabled  Boolean  @default(false)
+  message    String?
+  enabledBy  Int?
+  enabledAt  DateTime?
+  disabledAt DateTime?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+}
+
+// Unified Super Admin activity log (in addition to the existing
+// LoginAudit / LmsAuditLog tables). Records every super-admin action.
+model SaActivityLog {
+  id          Int      @id @default(autoincrement())
+  actorId     Int?
+  actorName   String?
+  actorRole   String?
+  module      String
+  action      String
+  description String?
+  metadata    String?  // JSON
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+
+  @@index([module])
+  @@index([actorId])
+  @@index([createdAt])
+}

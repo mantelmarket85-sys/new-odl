@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+.pm2/
+pids/
+logs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# Editor
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Backups
+*.backup
+*.bak
+*.tar.gz

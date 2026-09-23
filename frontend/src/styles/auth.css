@@ -1,0 +1,928 @@
+/* ======================================================================
+   AUST Admission System  —  Premium Auth UI (v3 · Unified Card Layout)
+   Single-card design: Form (LEFT)  ·  Image (RIGHT) — both inside one card
+   Fits viewport, no scroll, responsive across all breakpoints
+   ====================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --aust-primary:        #0b3c8c;
+  --aust-primary-dark:   #062260;
+  --aust-primary-light:  #1d5dd1;
+  --aust-accent:         #38bdf8;
+  --aust-text:           #0f172a;
+  --aust-muted:          #64748b;
+  --aust-subtle:         #94a3b8;
+  --aust-border:         #e2e8f0;
+  --aust-border-soft:    #eef2f7;
+  --aust-success:        #16a34a;
+  --aust-danger:         #dc2626;
+  --aust-bg:             #eef2f8;
+  --aust-card-bg:        #ffffff;
+  --aust-shadow-card:    0 30px 80px -20px rgba(11, 60, 140, 0.22),
+                         0 12px 32px -12px rgba(11, 60, 140, 0.15);
+  --aust-shadow-input:   0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* ===== Page wrapper — full viewport, NO scroll, padded so card is centered ===== */
+html:has(.aust-auth),
+body:has(.aust-auth) {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+.aust-auth {
+  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  height: 100vh;
+  max-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(14px, 2vw, 24px);
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(1100px 700px at -10% -10%, rgba(56, 189, 248, 0.10), transparent 55%),
+    radial-gradient(900px 700px at 110% 110%, rgba(11, 60, 140, 0.10), transparent 55%),
+    linear-gradient(180deg, #f5f8fd 0%, #e7eef9 100%);
+  color: var(--aust-text);
+}
+
+/* Soft dotted texture on body for organic feel */
+.aust-auth::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(11, 60, 140, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  opacity: 0.5;
+  z-index: 0;
+}
+
+/* ===========================================================
+   THE CARD — holds form-side and image-side together
+   =========================================================== */
+.aust-auth__card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 1280px;
+  height: 100%;
+  max-height: min(820px, calc(100vh - 32px));
+  display: grid;
+  /* Form 44% / Image 56% — image dominates but form gets enough room */
+  grid-template-columns: minmax(420px, 44%) 1fr;
+  background: var(--aust-card-bg);
+  border-radius: 26px;
+  overflow: hidden;
+  box-shadow: var(--aust-shadow-card);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  animation: austCardIn 0.55s cubic-bezier(.2,.8,.2,1) both;
+}
+
+@keyframes austCardIn {
+  0%   { opacity: 0; transform: translateY(12px) scale(.99); }
+  100% { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+/* ===========================================================
+   LEFT — FORM SIDE (inside the card)
+   =========================================================== */
+.aust-auth__form-side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(20px, 2.4vw, 36px) clamp(22px, 2.6vw, 40px);
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(11, 60, 140, 0.18) transparent;
+}
+.aust-auth__form-side::-webkit-scrollbar { width: 5px; }
+.aust-auth__form-side::-webkit-scrollbar-thumb { background: rgba(11, 60, 140, 0.18); border-radius: 4px; }
+
+/* Form container — flex layout to push footer to bottom */
+.aust-auth__form-inner {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  max-width: 440px;
+  margin: 0 auto;
+  gap: 0.6rem;
+}
+
+/* ===== Logo + Heading ===== */
+.aust-card__logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 0.2rem;
+}
+.aust-card__logo img {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  background: #fff;
+  padding: 5px;
+  object-fit: contain;
+  box-shadow:
+    0 6px 18px rgba(11, 60, 140, 0.18),
+    0 0 0 3px #fff,
+    0 0 0 4px rgba(29, 93, 209, 0.18);
+}
+.aust-card__title {
+  font-family: 'Fraunces', 'Plus Jakarta Sans', serif;
+  font-weight: 600;
+  font-size: clamp(1.25rem, 1.6vw, 1.5rem);
+  color: var(--aust-primary-dark);
+  text-align: center;
+  margin: 0.7rem 0 0;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+.aust-card__subtitle {
+  text-align: center;
+  color: var(--aust-muted);
+  font-size: 0.86rem;
+  margin: 0.3rem 0 0;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+/* ===== Form ===== */
+.aust-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 0.4rem;
+}
+
+.aust-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.aust-input-wrap .aust-icon {
+  position: absolute;
+  left: 14px;
+  width: 18px; height: 18px;
+  color: var(--aust-subtle);
+  pointer-events: none;
+  transition: color 0.2s, transform .25s;
+  z-index: 1;
+}
+.aust-input-wrap:focus-within .aust-icon {
+  color: var(--aust-primary);
+  transform: scale(1.05);
+}
+.aust-input {
+  width: 100%;
+  padding: 0.7rem 0.95rem 0.7rem 2.55rem;
+  border: 1.5px solid var(--aust-border);
+  background: #fdfdff;
+  border-radius: 11px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--aust-text);
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  outline: none;
+  box-shadow: var(--aust-shadow-input);
+}
+.aust-input:focus {
+  border-color: var(--aust-primary-light);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(29, 93, 209, 0.12);
+}
+.aust-input::placeholder { color: #a3b0c2; font-weight: 400; }
+.aust-input:disabled { background: #f1f5f9; cursor: not-allowed; opacity: 0.7; }
+.aust-input[readonly] { background: #f8fafc; color: var(--aust-muted); }
+
+.aust-input-wrap .aust-toggle-pw {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(241, 245, 249, 0.75);
+  border: 1px solid transparent;
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+  line-height: 1;
+  color: var(--aust-muted);
+  z-index: 2;
+}
+.aust-input-wrap .aust-toggle-pw:hover {
+  background: rgba(29, 93, 209, 0.10);
+  border-color: rgba(29, 93, 209, 0.20);
+  color: var(--aust-primary);
+}
+.aust-input-wrap .aust-toggle-pw:focus-visible {
+  outline: 2px solid rgba(29, 93, 209, 0.5);
+  outline-offset: 1px;
+}
+
+.aust-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--aust-text);
+  margin-bottom: 0.3rem;
+  letter-spacing: 0.15px;
+}
+
+/* ===== Button ===== */
+.aust-btn {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  gap: 0.55rem;
+  padding: 0.78rem 1rem;
+  border-radius: 11px;
+  border: 0;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.94rem;
+  font-family: inherit;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s cubic-bezier(.2,.8,.2,1), box-shadow 0.22s, opacity 0.18s, filter 0.2s;
+  letter-spacing: 0.2px;
+}
+.aust-btn::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.25) 50%, transparent 70%);
+  transform: translateX(-100%);
+  transition: transform .55s;
+}
+.aust-btn:hover:not(:disabled)::after { transform: translateX(100%); }
+.aust-btn--primary {
+  background: linear-gradient(135deg, var(--aust-primary) 0%, var(--aust-primary-light) 100%);
+  color: #fff;
+  box-shadow: 0 10px 22px -8px rgba(11, 60, 140, 0.55);
+}
+.aust-btn--primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 16px 30px -10px rgba(11, 60, 140, 0.65);
+}
+.aust-btn--primary:active:not(:disabled) { transform: translateY(0) scale(.99); }
+.aust-btn--block { width: 100%; margin-top: 0.45rem; }
+.aust-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.aust-spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.5);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: austSpin 0.8s linear infinite;
+}
+@keyframes austSpin { to { transform: rotate(360deg); } }
+
+/* ===== Alerts ===== */
+.aust-alert {
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  display: flex; gap: 0.55rem;
+  align-items: flex-start;
+  line-height: 1.45;
+  font-weight: 500;
+  animation: austSlideDown .35s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes austSlideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.aust-alert--error   { background: #fef2f2; color: var(--aust-danger);  border: 1px solid #fecaca; }
+.aust-alert--success { background: #ecfdf5; color: #047857;             border: 1px solid #a7f3d0; }
+.aust-alert--info    { background: #eff6ff; color: #1e40af;             border: 1px solid #bfdbfe; }
+
+/* ===== Checkbox ===== */
+.aust-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.82rem;
+  color: var(--aust-text);
+  line-height: 1.5;
+  margin-top: 0.1rem;
+  font-weight: 500;
+}
+.aust-check input[type="checkbox"] {
+  width: 16px; height: 16px;
+  accent-color: var(--aust-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+  cursor: pointer;
+}
+.aust-check a { color: var(--aust-primary); font-weight: 600; text-decoration: none; }
+.aust-check a:hover { text-decoration: underline; }
+
+/* ===== Footer / Links inside form ===== */
+.aust-card__links {
+  margin-top: 0.85rem;
+  text-align: center;
+  font-size: 0.84rem;
+  color: var(--aust-muted);
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--aust-border-soft);
+  font-weight: 500;
+}
+.aust-card__links a {
+  color: var(--aust-primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color .2s;
+}
+.aust-card__links a:hover { color: var(--aust-primary-light); text-decoration: underline; }
+
+.aust-card__between {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 0.1rem 0 0.05rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.aust-card__between a { color: var(--aust-primary); text-decoration: none; font-weight: 600; }
+.aust-card__between a:hover { text-decoration: underline; }
+
+.aust-page-footer {
+  margin-top: auto;
+  padding-top: 0.6rem;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--aust-subtle);
+  letter-spacing: 0.1px;
+  font-weight: 500;
+}
+
+/* ===== Two-column row inside form ===== */
+.aust-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+@media (max-width: 480px) { .aust-row-2 { grid-template-columns: 1fr; } }
+
+/* ===== Helper text ===== */
+.aust-help {
+  font-size: 0.74rem;
+  margin-top: 0.3rem;
+  color: var(--aust-muted);
+  display: flex; align-items: center; gap: 4px;
+  font-weight: 500;
+}
+.aust-help--error { color: var(--aust-danger); }
+.aust-help--ok    { color: var(--aust-success); }
+
+/* ===========================================================
+   §1.1 — STUDENT SIGNUP / LOGIN MATH CAPTCHA
+   =========================================================== */
+/* Panel wrapper. MUST stay `display:block` so the label, the question row and
+   the help text stack vertically. (A duplicate rule further down this file used
+   to force `display:flex` here, which laid them out side-by-side and squeezed
+   the answer input down to a few pixels — that duplicate has been removed.) */
+.aust-captcha {
+  display: block;
+  margin-top: 0.2rem;
+  padding: 0.8rem 0.85rem 0.7rem;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border: 1px solid var(--aust-border);
+  border-radius: 11px;
+}
+.aust-captcha .aust-label { margin-bottom: 0.45rem; }
+
+/* Question + refresh + answer input. Wraps onto a second line rather than
+   letting the answer field collapse. */
+.aust-captcha__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.aust-captcha__challenge {
+  flex: 0 1 auto;
+  min-width: 118px;
+  padding: 0.7rem 0.85rem;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #0f2a55 0%, #1d5dd1 100%);
+  color: #fff;
+  font-family: 'Courier New', ui-monospace, monospace;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
+  user-select: none;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px -8px rgba(11, 60, 140, 0.7);
+}
+.aust-captcha__refresh {
+  flex: 0 0 auto;
+  width: 40px; height: 40px;
+  padding: 0;
+  border-radius: 11px;
+  border: 1.5px solid var(--aust-border);
+  background: #fdfdff;
+  color: var(--aust-primary);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .2s, border-color .2s, transform .18s;
+}
+.aust-captcha__refresh:hover:not(:disabled) {
+  background: rgba(29, 93, 209, 0.08);
+  border-color: var(--aust-primary-light);
+  transform: rotate(-45deg);
+}
+.aust-captcha__refresh:disabled { opacity: .55; cursor: not-allowed; }
+
+/* The answer field: grows to fill the row but never shrinks below a width that
+   is comfortably clickable and wide enough to show the placeholder. */
+.aust-captcha__input-wrap {
+  flex: 1 1 170px;
+  min-width: 170px;
+  position: relative;
+}
+/* Re-assert the shared input geometry so the field can never inherit a
+   collapsed width or lose its left icon gutter. */
+.aust-captcha__input-wrap .aust-input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0.7rem 0.95rem 0.7rem 2.55rem;
+  border-radius: 11px;
+  font-size: 0.92rem;
+  cursor: text;
+  position: relative;
+  z-index: 1;
+}
+/* Help text always sits on its own line under the row. */
+.aust-captcha .aust-help { margin-top: 0.5rem; }
+
+/* Narrow columns: stack the answer field onto its own full-width line. */
+@media (max-width: 560px) {
+  .aust-captcha__challenge { flex: 1 1 auto; }
+  .aust-captcha__input-wrap { flex: 1 1 100%; min-width: 100%; }
+}
+
+/* ===========================================================
+   RIGHT — IMAGE SIDE (inside the card, full bleed within card)
+   =========================================================== */
+.aust-auth__image-side {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: #062260;
+  isolation: isolate;
+}
+
+/* Slow infinite zoom — uses the optimized image element directly so it loads async */
+.aust-image-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  filter: saturate(1.12) contrast(1.05);
+  animation: austImgSlowZoom 32s ease-in-out infinite alternate;
+  z-index: 0;
+  will-change: transform;
+}
+@keyframes austImgSlowZoom {
+  from { transform: scale(1.04); }
+  to   { transform: scale(1.18); }
+}
+
+/* Dark gradient overlay so text + glass header read clearly */
+.aust-auth__image-side::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg,
+      rgba(2, 18, 56, 0.55) 0%,
+      rgba(2, 18, 56, 0.18) 30%,
+      rgba(2, 18, 56, 0.45) 70%,
+      rgba(2, 18, 56, 0.88) 100%),
+    linear-gradient(120deg,
+      rgba(11, 60, 140, 0.32) 0%,
+      transparent 40%,
+      rgba(56, 189, 248, 0.18) 100%);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Floating dots overlay */
+.aust-auth__image-side::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(rgba(255,255,255,0.10) 1.2px, transparent 1.2px),
+    radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
+  background-size: 32px 32px, 18px 18px;
+  background-position: 0 0, 9px 14px;
+  opacity: .55;
+  animation: austDotsDrift 26s linear infinite;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+@keyframes austDotsDrift {
+  from { background-position: 0 0, 9px 14px; }
+  to   { background-position: 32px 32px, 41px 46px; }
+}
+
+/* Glass header at top of image */
+.aust-image-glass-header {
+  position: absolute;
+  top: 22px; left: 22px; right: 22px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 14px;
+  color: #fff;
+  box-shadow: 0 8px 28px -10px rgba(0, 0, 0, 0.35);
+  animation: austGlassFloat .65s cubic-bezier(.2,.8,.2,1) .15s both;
+}
+@keyframes austGlassFloat {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.aust-image-glass-header__crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  color: rgba(255,255,255,0.92);
+}
+.aust-image-glass-header__crumb a {
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  transition: color .15s;
+}
+.aust-image-glass-header__crumb a:hover { color: #fff; text-decoration: underline; }
+.aust-image-glass-header__crumb .sep { opacity: .55; }
+.aust-image-glass-header__crumb .here {
+  color: #fff;
+  background: rgba(255,255,255,0.18);
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.22);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+}
+.aust-image-glass-header__brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #fff;
+  letter-spacing: 0.2px;
+}
+.aust-image-glass-header__brand img {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #fff;
+  padding: 2px;
+  object-fit: contain;
+}
+
+/* Live "Admissions Open" pill */
+.aust-image-frame__badge {
+  position: absolute;
+  top: 84px; left: 26px;
+  display: inline-flex;
+  align-items: center; gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.30);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+}
+.aust-image-frame__badge .live-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34,197,94,0.5);
+  animation: austLive 1.6s infinite;
+}
+@keyframes austLive {
+  0%   { box-shadow: 0 0 0 0 rgba(34,197,94,0.55); }
+  70%  { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+}
+
+/* ===== Hero text — bottom of image ===== */
+.aust-auth__hero-text {
+  position: absolute;
+  left: clamp(22px, 4vw, 44px);
+  right: clamp(22px, 4vw, 44px);
+  bottom: clamp(28px, 5vw, 56px);
+  z-index: 5;
+  color: #fff;
+  max-width: 640px;
+}
+.aust-auth__hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.aust-auth__hero-text h2 {
+  font-family: 'Fraunces', 'Plus Jakarta Sans', serif;
+  font-size: clamp(1.5rem, 2.2vw, 2.2rem);
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -0.015em;
+  margin: 0 0 .65rem;
+  line-height: 1.2;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.55), 0 4px 22px rgba(0,0,0,0.45);
+}
+.aust-auth__hero-text p {
+  margin: 0;
+  font-size: 0.92rem;
+  opacity: .96;
+  line-height: 1.6;
+  max-width: 580px;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.55);
+  font-weight: 400;
+}
+
+.aust-auth__hero-stats {
+  display: flex;
+  gap: 10px;
+  margin-top: 1.2rem;
+  flex-wrap: wrap;
+}
+.aust-auth__hero-stats .stat {
+  background: rgba(255,255,255,0.13);
+  border: 1px solid rgba(255,255,255,0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 12px;
+  padding: 10px 16px;
+  color: #fff;
+  min-width: 0;
+}
+.aust-auth__hero-stats .stat .num {
+  font-size: 1.1rem; font-weight: 800; line-height: 1.1;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  letter-spacing: -0.01em;
+}
+.aust-auth__hero-stats .stat .lbl {
+  font-size: 0.7rem; opacity: .92; letter-spacing: .04em; margin-top: 3px;
+  font-weight: 500;
+}
+
+/* Trust bullets list (alternate to stats for forgot/reset pages) */
+.aust-auth__hero-trust {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.aust-auth__hero-trust__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 0.82rem;
+  font-weight: 500;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  line-height: 1.45;
+}
+.aust-auth__hero-trust__icon {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(34, 197, 94, 0.25);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+  border-radius: 50%;
+  color: #86efac;
+  flex-shrink: 0;
+}
+
+/* ===========================================================
+   RESPONSIVE
+   =========================================================== */
+@media (max-width: 1180px) {
+  .aust-auth__card {
+    grid-template-columns: minmax(380px, 46%) 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .aust-auth__card {
+    grid-template-columns: minmax(360px, 50%) 1fr;
+    max-height: min(860px, calc(100vh - 28px));
+  }
+  .aust-auth__hero-text h2 { font-size: clamp(1.35rem, 2.6vw, 1.85rem); }
+  .aust-auth__hero-text p { font-size: 0.88rem; }
+}
+
+/* Tablet/mobile: stack form on top, image below — fits viewport */
+@media (max-width: 820px) {
+  html:has(.aust-auth),
+  body:has(.aust-auth) {
+    overflow: auto;
+  }
+  .aust-auth {
+    height: auto;
+    min-height: 100vh;
+    max-height: none;
+    padding: 12px;
+    align-items: stretch;
+  }
+  .aust-auth__card {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    max-height: none;
+    height: auto;
+    min-height: calc(100vh - 24px);
+  }
+  .aust-auth__form-side {
+    order: 1;
+    padding: 22px 18px;
+    overflow: visible;
+  }
+  .aust-auth__image-side {
+    order: 2;
+    height: 220px;
+    min-height: 220px;
+  }
+  .aust-image-glass-header { top: 12px; left: 12px; right: 12px; padding: 8px 12px; }
+  .aust-image-glass-header__brand { font-size: 0.85rem; }
+  .aust-image-glass-header__brand img { width: 22px; height: 22px; }
+  .aust-image-frame__badge {
+    top: auto; bottom: 14px; right: 14px; left: auto;
+    padding: 6px 10px; font-size: 0.65rem;
+  }
+  .aust-auth__hero-text {
+    bottom: 14px; left: 16px; right: 16px;
+  }
+  .aust-auth__hero-text h2 { font-size: 1.1rem; margin-bottom: 0.2rem; }
+  .aust-auth__hero-text p { font-size: 0.78rem; -webkit-line-clamp: 2; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+  .aust-auth__hero-kicker { display: none; }
+  .aust-auth__hero-stats, .aust-auth__hero-trust { display: none; }
+}
+
+@media (max-width: 480px) {
+  .aust-auth__card { border-radius: 18px; }
+  .aust-auth__form-side { padding: 18px 14px; }
+  .aust-card__title { font-size: 1.15rem; }
+  .aust-card__subtitle { font-size: 0.8rem; }
+  .aust-auth__image-side { height: 170px; min-height: 170px; }
+}
+
+/* ===========================================================
+   LEGAL PAGES (unchanged)
+   =========================================================== */
+.aust-legal {
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  background: #f6f8fc;
+  min-height: 100vh;
+  padding: 2.5rem 1rem;
+}
+.aust-legal__container {
+  max-width: 880px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 18px;
+  padding: 2.6rem 2.1rem;
+  box-shadow: 0 14px 40px -10px rgba(0,0,0,0.10);
+  border: 1px solid #e2e8f0;
+}
+.aust-legal h1 {
+  color: var(--aust-primary);
+  font-family: 'Fraunces', serif;
+  font-size: 1.85rem;
+  margin: 0 0 0.4rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.aust-legal h2 {
+  color: var(--aust-primary-dark);
+  margin: 1.65rem 0 0.5rem;
+  font-size: 1.18rem;
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+}
+.aust-legal p, .aust-legal li {
+  color: var(--aust-text);
+  line-height: 1.75;
+  font-size: 0.94rem;
+}
+.aust-legal ul { padding-left: 1.4rem; }
+.aust-legal__date { color: var(--aust-muted); font-size: 0.84rem; margin-top: -0.2rem; }
+.aust-legal__back {
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  margin-bottom: 1rem;
+  color: var(--aust-primary); font-weight: 600; text-decoration: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(29,93,209,0.08);
+  transition: all .2s;
+}
+.aust-legal__back:hover { background: rgba(29,93,209,0.14); }
+
+/* NOTE: a legacy ".aust-captcha" compatibility block used to live here. It set
+   `display:flex` on the wrapper (which turned the label, the question row and the
+   help text into flex siblings on a single line and collapsed the answer input to
+   near-zero width) and it re-declared `.aust-captcha input`/`button`, wiping the
+   left icon padding so typed text rendered underneath the shield icon.
+   It had no consumers (no markup used its `.q` class), so it has been removed.
+   The canonical captcha styles live in the ".aust-captcha" section above. */
+
+/* ====================================================== */
+/* PHASE 10 — Auth pages production polish                */
+/* (Strictly additive; mobile/tablet refinement.)         */
+/* ====================================================== */
+
+/* Ensure auth forms never overflow on narrow phones */
+.aust-auth__card { min-width: 0; max-width: 100%; }
+.aust-auth__form-side, .aust-auth__image-side { min-width: 0; }
+
+/* Form rows in auth should always collapse to one column on phones */
+@media (max-width: 720px) {
+  .aust-auth__card { grid-template-columns: 1fr !important; }
+  .aust-auth__image-side { order: -1; }  /* image on top on mobile */
+  .aust-auth__form-side {
+    padding: 22px 18px !important;
+  }
+  .aust-auth__form-side h1, .aust-auth__form-side h2 {
+    font-size: 1.35rem;
+    line-height: 1.3;
+  }
+}
+
+/* Auth instruction / help text wrapping polish */
+.aust-auth__form-side p,
+.aust-auth__form-side .help-text,
+.aust-auth__form-side small,
+.aust-auth__form-side label small {
+  text-wrap: pretty;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.6;
+}
+
+/* Make password requirement / hint blocks readable on phones */
+@media (max-width: 540px) {
+  .aust-auth__form-side ul, .aust-auth__form-side ol {
+    padding-left: 18px;
+    line-height: 1.6;
+  }
+}
+
+/* Hide the image side completely on very narrow phones to save vertical space */
+@media (max-width: 420px) {
+  .aust-auth__image-side { display: none !important; }
+}
+
+/* Inputs in auth pages: ensure proper width + accessibility */
+.aust-auth__form-side input,
+.aust-auth__form-side select,
+.aust-auth__form-side textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Buttons in auth: never wrap awkwardly */
+.aust-auth__form-side button {
+  white-space: normal;
+  word-break: keep-all;
+  min-height: 44px;
+}
