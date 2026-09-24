@@ -2074,9 +2074,6 @@ model StudentAppeal {
   feedbackComment   String?
   feedbackAt        DateTime?
 
-  student LmsUser @relation("  feedbackComment   String?
-  feedbackAt        DateTime?
-
   student LmsUser @relation("StudentAppeals", fields: [studentId], references: [id], onDelete: Cascade)
 
   // Support & Grievances child collections (additive).
