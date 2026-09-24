@@ -12,6 +12,8 @@
 const prisma = require('../utils/prisma');
 const { buildResultGrades, computeGPA } = require('../utils/lmsGrading');
 const { safeJson } = require('../utils/lmsHelpers');
+const { isStudentVisibleStatus } = require('../utils/academicPolicy');
+const lifecycle = require('./resultLifecycle');
 
 // ------------------------------------------------------------
 // Attendance: compute present/absent/late counts + percentage for
@@ -202,6 +204,8 @@ async function recomputeResult(resultId) {
     include: { offering: true },
   });
   if (!result) return null;
+  const { isImmutableStatus } = require('../utils/lmsGrading');
+  if (isImmutableStatus(result.status)) return result;
   const grades = buildResultGrades(result, result.offering);
   return prisma.courseResult.update({
     where: { id: resultId },
@@ -221,47 +225,7 @@ async function previewResultGrades(offeringId, componentMarks) {
 // course/term info + GPA per term and CGPA.
 // ------------------------------------------------------------
 async function studentTranscript(studentId) {
-  const results = await prisma.courseResult.findMany({
-    where: { studentId, status: 'PUBLISHED' },
-    include: {
-      offering: {
-        include: { course: true, term: true },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-  const terms = {};
-  const rows = [];
-  for (const r of results) {
-    const course = r.offering.course;
-    const term = r.offering.term;
-    const ch = course ? course.creditHours : 3;
-    const row = {
-      resultId: r.id,
-      courseCode: course ? course.code : '—',
-      courseTitle: course ? course.title : '—',
-      creditHours: ch,
-      termCode: term ? term.code : '—',
-      termTitle: term ? term.title : '—',
-      totalPercent: r.totalPercent,
-      letterGrade: r.letterGrade,
-      gradePoints: r.gradePoints,
-    };
-    rows.push(row);
-    const key = term ? term.code : 'NA';
-    if (!terms[key]) terms[key] = { termCode: key, termTitle: row.termTitle, rows: [] };
-    terms[key].rows.push(row);
-  }
-  const termSummaries = Object.values(terms).map((t) => ({
-    termCode: t.termCode,
-    termTitle: t.termTitle,
-    gpa: computeGPA(t.rows),
-    totalCredits: t.rows.reduce((s, x) => s + (x.creditHours || 0), 0),
-    rows: t.rows,
-  }));
-  const cgpa = computeGPA(rows);
-  const totalCredits = rows.reduce((s, x) => s + (x.creditHours || 0), 0);
-  return { cgpa, totalCredits, terms: termSummaries, rows };
+  return lifecycle.visibleTranscript(studentId);
 }
 
 // ------------------------------------------------------------
@@ -286,7 +250,7 @@ async function legacyResultBreakdown(offeringId, studentId) {
     where: { offeringId_studentId: { offeringId, studentId } },
     include: { offering: { include: { course: true } } },
   });
-  if (!result || result.status !== 'PUBLISHED') return null;
+  if (!result || !isStudentVisibleStatus(result.status)) return null;
   const offering = result.offering;
   const course = offering ? offering.course : null;
   const hasLab = !!(course && course.hasLab);
@@ -506,7 +470,10 @@ function round2(value) {
 
 function weightedFromRaw(obtained, total, weight) {
   if (obtained == null || total == null || Number(total) <= 0) return null;
-  return round2((Number(obtained) / Number(total)) * Number(weight || 0));
+  const cap = Number(weight) || 0;
+  const converted = (Number(obtained) / Number(total)) * cap;
+  // Never exceed the item's own weight share (e.g. 10/20 with 5% → 2.5, max 5).
+  return round2(Math.min(Math.max(converted, 0), cap));
 }
 
 function configuredItemPlan(rawItems, configuredCount, fallbackLabel, categoryWeight, actualItems) {
@@ -524,6 +491,8 @@ function configuredItemPlan(rawItems, configuredCount, fallbackLabel, categoryWe
       label: spec.label || (actual && actual.label) || `${fallbackLabel} ${index + 1}`,
       weight: round2(weight),
       weightedMarks: actual ? weightedFromRaw(actual.obtained, actual.total, weight) : null,
+      obtained: actual && actual.obtained != null ? Number(actual.obtained) : null,
+      total: actual && actual.total != null ? Number(actual.total) : null,
       status: actual && actual.obtained != null ? 'GRADED' : 'PENDING',
     };
   });
@@ -539,7 +508,7 @@ async function buildStudentResultBreakdown(offeringId, studentId, publishedOnly)
   const result = await prisma.courseResult.findUnique({
     where: { offeringId_studentId: { offeringId, studentId } },
   }).catch(() => null);
-  if (publishedOnly && (!result || result.status !== 'PUBLISHED')) return null;
+  if (publishedOnly && (!result || !isStudentVisibleStatus(result.status))) return null;
 
   const course = offering.course;
   const hasLab = !!course.hasLab;
@@ -593,13 +562,18 @@ async function buildStudentResultBreakdown(offeringId, studentId, publishedOnly)
   const components = [];
   const appendAggregate = (key, label, componentWeight, marks, max) => {
     if (Number(componentWeight) <= 0) return;
-    const hasMarks = !!result;
+    // Mid/Final default to 0 on a DRAFT CourseResult row. Treat an unentered
+    // 0 as Pending so students never see a blank or a fake zero.
+    const published = !!(result && result.status === 'PUBLISHED');
+    const entered = marks != null && (published || Number(marks) > 0);
     components.push({
       key,
       label,
       weight: round2(componentWeight),
-      weightedMarks: hasMarks ? weightedFromRaw(marks, max, componentWeight) : null,
-      status: hasMarks ? 'GRADED' : 'PENDING',
+      weightedMarks: entered ? weightedFromRaw(marks, max, componentWeight) : null,
+      obtained: entered ? Number(marks) : null,
+      total: max != null ? Number(max) : null,
+      status: entered ? 'GRADED' : 'PENDING',
     });
   };
   const appendPlanned = (key, label, componentWeight, rawItems, configuredCount, actualItems, aggregateMarks, aggregateMax) => {

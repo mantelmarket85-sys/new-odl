@@ -14,6 +14,10 @@ async function request(path, { method = 'GET', body, isForm = false } = {}) {
   const token = authService.getToken();
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
+  try {
+    const gb = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('lmsGradebookToken') : null;
+    if (gb) headers['x-gradebook-token'] = gb;
+  } catch (_) { /* ignore */ }
   let payload;
   if (isForm) {
     payload = body; // FormData — let the browser set Content-Type
@@ -248,9 +252,14 @@ const teacher = {
   gradeAttempt: (attemptId, score) => put(`/lms/academic/teacher/quiz-attempts/${attemptId}/grade`, { score }),
   aiGenerateQuiz: (quizId, body) => post(`/lms/academic/teacher/quizzes/${quizId}/ai-generate`, body),
   // Gradebook + Results
+  pinStatus: () => get('/lms/academic/teacher/gradebook-pin/status'),
+  setPin: (body) => post('/lms/academic/teacher/gradebook-pin', body),
+  verifyPin: (pin) => post('/lms/academic/teacher/gradebook-pin/verify', { pin }),
   gradebook: (offeringId) => get(`/lms/academic/teacher/offerings/${offeringId}/gradebook`),
   saveResults: (offeringId, results) => post(`/lms/academic/teacher/offerings/${offeringId}/results`, { results }),
   publishResults: (offeringId) => put(`/lms/academic/teacher/offerings/${offeringId}/results/publish`),
+  offeringReview: (offeringId) => get(`/lms/academic/teacher/offerings/${offeringId}/review`),
+  submitResult: (offeringId, pin) => post(`/lms/academic/teacher/offerings/${offeringId}/submit-result`, { pin }),
   // Marks — real-time per-student CRUD
   saveStudentMarks: (offeringId, studentId, body) => put(`/lms/academic/teacher/offerings/${offeringId}/marks/${studentId}`, body),
   deleteStudentMarks: (offeringId, studentId) => del(`/lms/academic/teacher/offerings/${offeringId}/marks/${studentId}`),
@@ -691,8 +700,12 @@ const exam = {
   // Results Compilation (was Marks Correction)
   compilationResults: (params = '') => get(`/lms/academic/exam/compilation/results${params}`),
   compileResults: (body) => post('/lms/academic/exam/compilation/compile', body),
+  declareUnofficial: (body) => post('/lms/academic/exam/compilation/unofficial', body),
   finalizeResults: (body) => post('/lms/academic/exam/compilation/finalize', body),
   publishResults: (body) => post('/lms/academic/exam/compilation/publish', body),
+  resultHierarchy: () => get('/lms/academic/exam/compilation/hierarchy'),
+  resultCollection: (params = '') => get(`/lms/academic/exam/compilation/collection${params}`),
+  resultArchive: (params = '') => get(`/lms/academic/exam/compilation/archive${params}`),
   // Gazette
   gazettes: () => get('/lms/academic/exam/gazettes'),
   buildGazette: (body) => post('/lms/academic/exam/gazettes/build', body),
@@ -714,6 +727,8 @@ const exam = {
 // student feedback, quality monitoring, compliance/accreditation,
 // improvement plans, program evaluation, analytics, reports.
 // ============================================================
+const qec = {
+  // Dashbo============================================================
 const qec = {
   // Dashboard & live counts
   dashboard: () => get('/lms/academic/qec/dashboard'),

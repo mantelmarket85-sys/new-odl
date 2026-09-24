@@ -17,7 +17,9 @@ const { asyncHandler, paginated, parseListQuery, httpError, safeJson } = require
 const { creditLabel } = require('../../../utils/lmsCredit');
 const { audit } = require('../../../utils/lmsAudit');
 const academic = require('../../../services/academicService');
-const { buildResultGrades, resolveOfferingWeights } = require('../../../utils/lmsGrading');
+const { buildResultGrades, resolveOfferingWeights, isImmutableStatus } = require('../../../utils/lmsGrading');
+const lifecycle = require('../../../services/resultLifecycle');
+const { slotsFromWeightage } = require('../../../utils/academicPolicy');
 const { uploadLmsMaterial, uploadLmsLectureFallback, uploadLmsLibrary, uploadLmsAvatar, uploadLmsMessage, uploadLmsSubmission } = require('../../../middleware/upload');
 const { notify } = require('../../../utils/lmsNotify');
 const bbb = require('../../../utils/bbb');
@@ -76,6 +78,27 @@ router.get('/events', asyncHandler(async (req, res) => {
 router.use(lmsAuth);
 router.use(lmsRequireRole('Teacher', 'CourseCoordinator'));
 
+// Gradebook PIN (5 digits). Required before marks/gradebook APIs.
+router.get('/gradebook-pin/status', asyncHandler(async (req, res) => {
+  res.json(await lifecycle.pinStatus(req.lmsUser.id));
+}));
+
+router.post('/gradebook-pin', asyncHandler(async (req, res) => {
+  const out = await lifecycle.setPin(req, {
+    pin: req.body.pin,
+    confirmPin: req.body.confirmPin,
+    currentPin: req.body.currentPin,
+  });
+  res.json(out);
+}));
+
+router.post('/gradebook-pin/verify', asyncHandler(async (req, res) => {
+  await lifecycle.verifyPin(req.lmsUser.id, req.body.pin);
+  const token = lifecycle.issueGradebookToken(req.lmsUser);
+  await audit(req, 'GRADEBOOK_ACCESSED', 'LmsUser', req.lmsUser.id, {});
+  res.json({ token, expiresIn: 1800 });
+}));
+
 // --- helper: ensure the current teacher owns the offering ---
 async function getOwnedOffering(req, offeringId) {
   const offering = await prisma.courseOffering.findFirst({
@@ -93,6 +116,19 @@ async function getOwnedOffering(req, offeringId) {
 function offeringWhereForTeacher(req) {
   if (req.lmsUser.role === 'CourseCoordinator') return { isDeleted: false };
   return { isDeleted: false, teacherId: req.lmsUser.id };
+}
+
+async function coordinatorCounts(offering) {
+  const { counts } = await lifecycle.loadWeightage(offering);
+  return counts || { assignment: 0, quiz: 0, lab: 0, project: 0, mid: 0, final: 0 };
+}
+
+function requireGradebookPin(req) {
+  return lifecycle.requireGradebook(req);
+}
+
+async function assertOfferingUnlocked(offeringId) {
+  return lifecycle.assertOfferingMutable(offeringId);
 }
 
 // ============================================================
@@ -334,8 +370,12 @@ router.post('/offerings/:id/assignments', validate([
   body('title').trim().notEmpty().withMessage('Title is required'),
   body('dueDate').trim().notEmpty().withMessage('Due date is required'),
 ]), asyncHandler(async (req, res) => {
-  await getOwnedOffering(req, parseInt(req.params.id, 10));
+  const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
   const offeringId = parseInt(req.params.id, 10);
+  const counts = await coordinatorCounts(offering);
+  if (counts.assignment <= 0) throw httpError(400, 'The Course Coordinator has not configured Assignments for this course.');
+  const existing = await prisma.assignment2.count({ where: { offeringId, isDeleted: false } });
+  if (existing >= counts.assignment) throw httpError(400, `Coordinator configured ${counts.assignment} assignment(s). You cannot create more.`);
   const { title, description, totalMarks, dueDate, startTime, endTime, allowLate, isPublished } = req.body;
   const assignment = await prisma.assignment2.create({
     data: {
@@ -552,6 +592,10 @@ router.post('/offerings/:id/lab-tasks', uploadLmsMaterial.single('file'), valida
 ]), asyncHandler(async (req, res) => {
   const offering = await getOwnedLabOffering(req, parseInt(req.params.id, 10));
   const offeringId = offering.id;
+  const counts = await coordinatorCounts(offering);
+  if (counts.lab <= 0) throw httpError(400, 'The Course Coordinator has not configured Lab tasks for this course.');
+  const existingLabs = await prisma.labTask.count({ where: { offeringId, isDeleted: false } });
+  if (existingLabs >= counts.lab) throw httpError(400, `Coordinator configured ${counts.lab} lab task(s). You cannot create more.`);
   const { title, description, totalMarks, dueDate, allowLate, isPublished, sectionId } = req.body;
   const labTask = await prisma.labTask.create({
     data: {
@@ -821,8 +865,12 @@ router.get('/offerings/:id/quizzes', asyncHandler(async (req, res) => {
 router.post('/offerings/:id/quizzes', validate([
   body('title').trim().notEmpty().withMessage('Quiz title is required'),
 ]), asyncHandler(async (req, res) => {
-  await getOwnedOffering(req, parseInt(req.params.id, 10));
+  const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
   const offeringId = parseInt(req.params.id, 10);
+  const counts = await coordinatorCounts(offering);
+  if (counts.quiz <= 0) throw httpError(400, 'The Course Coordinator has not configured Quizzes for this course.');
+  const existingQuizzes = await prisma.quiz.count({ where: { offeringId, isDeleted: false } });
+  if (existingQuizzes >= counts.quiz) throw httpError(400, `Coordinator configured ${counts.quiz} quiz(zes). You cannot create more.`);
   const { title, description, durationMin, startAt, endAt, shuffle } = req.body;
   const quiz = await prisma.quiz.create({
     data: {
@@ -987,15 +1035,17 @@ router.put('/quiz-attempts/:attemptId/grade', validate([
 // merges any existing CourseResult (mid/final marks set by teacher).
 router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
   const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
+  requireGradebookPin(req);
   const offeringId = offering.id;
 
-  const [regs, assignments, quizzes, results] = await Promise.all([
+  const [regs, assignments, quizzes, labTasks, results] = await Promise.all([
     prisma.courseRegistration.findMany({
       where: { offeringId, status: { in: ['ENROLLED', 'COMPLETED'] } },
       include: { student: { include: { profile: true } } },
     }),
-    prisma.assignment2.findMany({ where: { offeringId, isDeleted: false }, include: { submissions: true } }),
-    prisma.quiz.findMany({ where: { offeringId, isDeleted: false }, include: { attempts: true } }),
+    prisma.assignment2.findMany({ where: { offeringId, isDeleted: false }, include: { submissions: true }, orderBy: { id: 'asc' } }),
+    prisma.quiz.findMany({ where: { offeringId, isDeleted: false }, include: { attempts: true }, orderBy: { id: 'asc' } }),
+    prisma.labTask.findMany({ where: { offeringId, isDeleted: false }, include: { submissions: true }, orderBy: { id: 'asc' } }),
     prisma.courseResult.findMany({ where: { offeringId } }),
   ]);
 
@@ -1005,8 +1055,30 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
   // Client requirement 2.3 — the weightage (and which components exist) is the
   // Course Coordinator's CourseWeightage, shared identically by Gradebook and
   // Marks. Resolve it once for this offering.
-  const { weights: resolvedWeights, components } = await resolveOfferingWeights(prisma, offering);
+  const { weights: resolvedWeights, components, slots: coordSlots, counts, totalWeight } = await resolveOfferingWeights(prisma, offering);
   const hasLab = resolvedWeights.labWeight > 0;
+
+  const round2 = (v) => Math.round(Number(v) * 100) / 100;
+  const convertToWeight = (obtained, total, itemWeight) => {
+    if (obtained == null || total == null || Number(total) <= 0) return null;
+    const cap = Number(itemWeight) || 0;
+    const converted = (Number(obtained) / Number(total)) * cap;
+    return round2(Math.min(Math.max(converted, 0), cap));
+  };
+
+  // Columns come ONLY from Course Coordinator configuration (counts + weights).
+  const items = (coordSlots || []).map((slot) => {
+    let mapped = null;
+    if (slot.kind === 'assignment') mapped = assignments[slot.index - 1] || null;
+    else if (slot.kind === 'quiz') mapped = quizzes[slot.index - 1] || null;
+    else if (slot.kind === 'lab') mapped = labTasks[slot.index - 1] || null;
+    return {
+      ...slot,
+      id: mapped ? mapped.id : null,
+      label: mapped?.title || slot.label,
+      totalMarks: mapped?.totalMarks || 100,
+    };
+  });
 
   // Pre-index submissions/attempts by student.
   const rows = regs.map((reg) => {
@@ -1040,8 +1112,52 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
       // coordinator gave Lab a weight (hasLab); harmless otherwise.
       labMarks: existing ? (existing.labMarks || 0) : 0,
       labMax: existing ? (existing.labMax || 100) : 100,
+      projectMarks: existing ? (existing.projectMarks || 0) : 0,
+      projectMax: existing ? (existing.projectMax || 100) : 100,
     };
     const grades = buildResultGrades(componentMarks, resolvedWeights);
+
+    const published = !!(existing && isImmutableStatus(existing.status));
+    const cells = {};
+    for (const item of items) {
+      if (item.kind === 'assignment' && item.id) {
+        const a = assignments.find((x) => x.id === item.id);
+        const sub = a ? a.submissions.find((s) => s.studentId === sid && s.marks != null) : null;
+        const obtained = sub ? Number(sub.marks) : null;
+        const total = a ? Number(a.totalMarks) : item.totalMarks;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: obtained == null };
+      } else if (item.kind === 'quiz' && item.id) {
+        const qz = quizzes.find((x) => x.id === item.id);
+        const att = qz ? qz.attempts.find((t) => t.studentId === sid && t.score != null) : null;
+        const obtained = att ? Number(att.score) : null;
+        const total = att && Number(att.maxScore) > 0 ? Number(att.maxScore) : (qz ? Number(qz.totalMarks) : item.totalMarks);
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: obtained == null };
+      } else if (item.kind === 'lab' && item.id) {
+        const t = labTasks.find((x) => x.id === item.id);
+        const sub = t ? t.submissions.find((s) => s.studentId === sid && s.marks != null) : null;
+        const obtained = sub ? Number(sub.marks) : null;
+        const total = t ? Number(t.totalMarks) : item.totalMarks;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: obtained == null };
+      } else if (item.kind === 'mid') {
+        const raw = existing ? existing.midMarks : null;
+        const entered = raw != null && (published || Number(raw) > 0);
+        const obtained = entered ? Number(raw) : null;
+        const total = existing ? Number(existing.midMax) : 100;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: !entered };
+      } else if (item.kind === 'final') {
+        const raw = existing ? existing.finalMarks : null;
+        const entered = raw != null && (published || Number(raw) > 0);
+        const obtained = entered ? Number(raw) : null;
+        const total = existing ? Number(existing.finalMax) : 100;
+        cells[item.key] = { obtained, total, converted: convertToWeight(obtained, total, item.itemWeight), pending: !entered };
+      } else {
+        const obtained = item.marksField && existing ? existing[item.marksField] : null;
+        const total = item.maxField && existing ? existing[item.maxField] : item.totalMarks;
+        const entered = obtained != null && (published || Number(obtained) > 0);
+        cells[item.key] = { obtained: entered ? Number(obtained) : null, total, converted: convertToWeight(entered ? obtained : null, total, item.itemWeight), pending: !entered };
+      }
+    }
+
     return {
       studentId: sid,
       name: reg.student.profile ? reg.student.profile.fullName : reg.student.username,
@@ -1050,6 +1166,7 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
       computedQuiz: quizMarks,
       ...componentMarks,
       ...grades,
+      cells,
       resultStatus: existing ? existing.status : 'DRAFT',
       resultId: existing ? existing.id : null,
     };
@@ -1069,10 +1186,16 @@ router.get('/offerings/:id/gradebook', asyncHandler(async (req, res) => {
         mid: resolvedWeights.midWeight,
         final: resolvedWeights.finalWeight,
         lab: resolvedWeights.labWeight,
+        project: resolvedWeights.projectWeight,
       },
       // Ordered component list (the single source of truth for which columns
       // BOTH the Gradebook and Marks module render, with identical weightage).
       components,
+      // Per-item columns from Course Coordinator configuration only.
+      items,
+      counts: counts || null,
+      totalWeight: totalWeight || null,
+      locked: results.some((r) => isImmutableStatus(r.status)),
     },
     rows,
   });
@@ -1085,16 +1208,19 @@ router.post('/offerings/:id/results', validate([
 ]), asyncHandler(async (req, res) => {
   const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
   const offeringId = offering.id;
+  requireGradebookPin(req);
+  await assertOfferingUnlocked(offeringId);
   // 1.4.1 Marks lock: once the Exam Controller has PUBLISHED a student's result
   // (compilation/finalization), the teacher can no longer edit those marks.
   const publishedLock = await prisma.courseResult.findMany({
-    where: { offeringId, status: { in: ['FINALIZED', 'PUBLISHED', 'LOCKED', 'FROZEN'] } },
-    select: { studentId: true },
+    where: { offeringId },
+    select: { studentId: true, status: true },
   });
+  const lockedRows = publishedLock.filter((r) => isImmutableStatus(r.status));
   const lockedStudents = new Set(publishedLock.map((r) => r.studentId));
   const attemptedLocked = req.body.results.filter((r) => r.studentId && lockedStudents.has(r.studentId));
   if (attemptedLocked.length > 0) {
-    throw httpError(409, `Marks are locked for ${attemptedLocked.length} student(s): results have been published/finalized by the Exam Controller and can no longer be edited.`);
+    throw httpError(409, `Marks are locked for ${attemptedLocked.length} student(s): submitted/finalized results cannot be edited by any role.`);
   }
   // Client requirement 2.3 — grade with the coordinator's weightage.
   const { weights: resolvedWeights } = await resolveOfferingWeights(prisma, offering);
@@ -1112,6 +1238,8 @@ router.post('/offerings/:id/results', validate([
       finalMax: r.finalMax != null ? parseFloat(r.finalMax) : 100,
       labMarks: r.labMarks != null ? parseFloat(r.labMarks) : 0,
       labMax: r.labMax != null ? parseFloat(r.labMax) : 100,
+      projectMarks: r.projectMarks != null ? parseFloat(r.projectMarks) : 0,
+      projectMax: r.projectMax != null ? parseFloat(r.projectMax) : 100,
     };
     const grades = buildResultGrades(componentMarks, resolvedWeights);
     ops.push(
@@ -1128,23 +1256,34 @@ router.post('/offerings/:id/results', validate([
   res.json({ message: `Saved results for ${ops.length} student(s)` });
 }));
 
-// Publish results for an offering (makes them visible to students + transcript)
 router.put('/offerings/:id/results/publish', asyncHandler(async (req, res) => {
+  throw httpError(400, 'Use Submit Result to Exam Controller (Gradebook PIN required). Teacher publish no longer releases marks to students.');
+}));
+
+router.get('/offerings/:id/review', asyncHandler(async (req, res) => {
   const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
-  const offeringId = offering.id;
-  const updated = await prisma.courseResult.updateMany({
-    where: { offeringId },
-    data: { status: 'PUBLISHED', publishedAt: new Date() },
+  requireGradebookPin(req);
+  const review = await lifecycle.offeringReview(offering);
+  res.json({ review });
+}));
+
+router.get('/result-reviews', asyncHandler(async (req, res) => {
+  requireGradebookPin(req);
+  const offerings = await prisma.courseOffering.findMany({
+    where: offeringWhereForTeacher(req),
+    include: { course: true, term: true },
+    orderBy: { id: 'desc' },
   });
-  // Mark registrations COMPLETED.
-  await prisma.courseRegistration.updateMany({
-    where: { offeringId, status: 'ENROLLED' },
-    data: { status: 'COMPLETED' },
-  });
-  await audit(req, 'RESULTS_PUBLISH', 'CourseOffering', offeringId, { after: { count: updated.count } });
-  const publishedStudents = await prisma.courseResult.findMany({ where: { offeringId }, select: { studentId: true } });
-  realtime.emitTo(publishedStudents.map((row) => row.studentId), 'result', { action: 'published', offeringId });
-  res.json({ message: `Published ${updated.count} result(s)` });
+  const reviews = [];
+  for (const o of offerings) reviews.push(await lifecycle.offeringReview(o));
+  res.json({ reviews });
+}));
+
+router.post('/offerings/:id/submit-result', asyncHandler(async (req, res) => {
+  const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
+  requireGradebookPin(req);
+  const out = await lifecycle.submitOffering(req, offering, req.body.pin);
+  res.json({ message: 'Result submitted to the Exam Controller and locked.', ...out });
 }));
 
 // ============================================================
@@ -1155,14 +1294,15 @@ router.put('/offerings/:id/results/publish', asyncHandler(async (req, res) => {
 router.put('/offerings/:id/marks/:studentId', asyncHandler(async (req, res) => {
   const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
   const offeringId = offering.id;
+  requireGradebookPin(req);
+  await assertOfferingUnlocked(offeringId);
   const studentId = req.params.studentId;
   // Guard: student must be registered in this offering.
   const reg = await prisma.courseRegistration.findFirst({ where: { offeringId, studentId } });
   if (!reg) throw httpError(404, 'Student is not registered in this offering');
   const existing = await prisma.courseResult.findUnique({ where: { offeringId_studentId: { offeringId, studentId } } });
-  // 1.4.1 Marks lock: block edit once result is PUBLISHED/finalized by Exam Controller.
-  if (existing && existing.status !== 'DRAFT') {
-    throw httpError(409, 'Marks are locked: this result has entered Result Publishing and can no longer be edited.');
+  if (existing && isImmutableStatus(existing.status)) {
+    throw httpError(409, 'Marks are locked: submitted/finalized results cannot be edited by any role.');
   }
   const num = (v, d) => (v != null && v !== '' ? parseFloat(v) : d);
   const componentMarks = {
@@ -1176,6 +1316,8 @@ router.put('/offerings/:id/marks/:studentId', asyncHandler(async (req, res) => {
     finalMax: num(req.body.finalMax, existing ? existing.finalMax : 100),
     labMarks: num(req.body.labMarks, existing ? (existing.labMarks || 0) : 0),
     labMax: num(req.body.labMax, existing ? (existing.labMax || 100) : 100),
+    projectMarks: num(req.body.projectMarks, existing ? (existing.projectMarks || 0) : 0),
+    projectMax: num(req.body.projectMax, existing ? (existing.projectMax || 100) : 100),
   };
   // Client requirement 2.3 — grade with the coordinator's weightage.
   const { weights: resolvedWeights } = await resolveOfferingWeights(prisma, offering);
@@ -1196,12 +1338,13 @@ router.put('/offerings/:id/marks/:studentId', asyncHandler(async (req, res) => {
 router.delete('/offerings/:id/marks/:studentId', asyncHandler(async (req, res) => {
   const offering = await getOwnedOffering(req, parseInt(req.params.id, 10));
   const offeringId = offering.id;
+  requireGradebookPin(req);
+  await assertOfferingUnlocked(offeringId);
   const studentId = req.params.studentId;
   const existing = await prisma.courseResult.findUnique({ where: { offeringId_studentId: { offeringId, studentId } } });
   if (!existing) throw httpError(404, 'No marks recorded for this student');
-  // 1.4.1 Marks lock: block delete once result is PUBLISHED/finalized by Exam Controller.
-  if (existing.status !== 'DRAFT') {
-    throw httpError(409, 'Marks are locked: this result has entered Result Publishing and can no longer be deleted.');
+  if (isImmutableStatus(existing.status)) {
+    throw httpError(409, 'Marks are locked: submitted/finalized results cannot be deleted by any role.');
   }
   await prisma.courseResult.delete({ where: { offeringId_studentId: { offeringId, studentId } } });
   await audit(req, 'MARKS_DELETE', 'CourseResult', existing.id, {});
@@ -1651,7 +1794,18 @@ router.get('/library', asyncHandler(async (req, res) => {
       url: m.url, fileName: m.fileName, filePath: m.filePath, createdAt: m.createdAt,
     });
   }
-  res.json({ categories: Object.values(categories), total: materials.length });
+  const offeringsList = offerings.map((o) => {
+    const sem = o.course && o.course.semester
+      ? (o.course.semester.title || (o.course.semester.number != null ? `Semester ${o.course.semester.number}` : ''))
+      : '';
+    return {
+      offeringId: o.id,
+      courseCode: o.course ? o.course.code : '',
+      courseTitle: o.course ? o.course.title : '',
+      semester: sem,
+    };
+  });
+  res.json({ categories: Object.values(categories), total: materials.length, offerings: offeringsList });
 }));
 
 // Create a library resource (non-video) — 5MB cap, per-teacher scoped.
@@ -1744,15 +1898,19 @@ router.get('/live-classes', asyncHandler(async (req, res) => {
     where: { offeringId: { in: ids }, isDeleted: false },
     orderBy: { scheduledAt: 'desc' },
   });
+  const bbbConfigured = bbb.isConfigured();
   res.json({
+    bbbConfigured,
     offerings: offerings.map((o) => ({ id: o.id, courseCode: o.course ? o.course.code : '', courseTitle: o.course ? o.course.title : '' })),
     liveClasses: classes.map((c) => {
       const o = offMap[c.offeringId];
+      const status = (c.status || '').toUpperCase();
+      const canJoin = ['LIVE', 'SCHEDULED'].includes(status) && (bbbConfigured || !!c.joinUrl);
       return {
         id: c.id, title: c.title, description: c.description,
         scheduledAt: c.scheduledAt, durationMin: c.durationMin,
         status: c.status, joinUrl: c.joinUrl, recordingUrl: c.recordingUrl,
-        offeringId: c.offeringId,
+        offeringId: c.offeringId, bbbConfigured, canJoin,
         courseCode: o && o.course ? o.course.code : '',
         courseTitle: o && o.course ? o.course.title : '',
       };
@@ -2356,3 +2514,5 @@ router.get('/schedule', asyncHandler(async (req, res) => {
 }));
 
 module.exports = router;
+
+

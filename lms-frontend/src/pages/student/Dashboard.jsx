@@ -103,7 +103,7 @@ const CourseCard = ({ c, index, navigate }) => {
       transition={{ delay: index * 0.04 }}
       /* h-full so every card fills its grid row to an equal height (grid rows
          stretch by default) — this keeps the whole row of cards aligned. */
-      className="flex flex-col h-full rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden hover:shadow-lg transition"
+      className="flex flex-col h-full min-h-[28rem] min-w-0 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden hover:shadow-lg transition"
     >
       {/* Gradient banner with course code + credit hours + LIVE badge */}
       <div className={`relative bg-gradient-to-r ${grad} px-4 pt-3 pb-7`}>
@@ -244,7 +244,7 @@ const LabCard = ({ c, index, navigate }) => {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      className="flex flex-col h-full rounded-2xl border border-indigo-200 dark:border-indigo-900/40 ring-1 ring-indigo-100 dark:ring-indigo-900/30 bg-white dark:bg-slate-900 overflow-hidden hover:shadow-lg transition"
+      className="flex flex-col h-full min-h-[28rem] min-w-0 rounded-2xl border border-indigo-200 dark:border-indigo-900/40 ring-1 ring-indigo-100 dark:ring-indigo-900/30 bg-white dark:bg-slate-900 overflow-hidden hover:shadow-lg transition"
     >
       <div className="relative bg-gradient-to-r from-indigo-600 to-cyan-600 px-4 pt-3 pb-7">
         <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-xl" />
@@ -475,7 +475,7 @@ const Dashboard = () => {
               {courses.length === 0 ? (
                 <EmptyState icon="BookOpen" title="No courses yet" description="You will be enrolled automatically based on your program scheme." className="py-10" />
               ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 gap-4 items-stretch">
                   {courseCards.map((item, i) => (
                     item.kind === "lab" ? (
                       <LabCard key={item.key} c={item} index={i} navigate={navigate} />

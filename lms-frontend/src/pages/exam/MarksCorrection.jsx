@@ -17,7 +17,14 @@ const norm = (v) => (v && v !== ALL ? v : "");
 
 const ExamMarksCorrection = () => {
   const { toast } = useToast();
-  const [tab, setTab] = useState("compilation"); // compilation | collection | publish
+  const pathTab = typeof window !== "undefined" && window.location.pathname.includes("result-archive")
+    ? "archive"
+    : (typeof window !== "undefined" && window.location.pathname.includes("result-finalizing")
+      ? "publish"
+      : (typeof window !== "undefined" && window.location.pathname.includes("results-collection")
+        ? "collection"
+        : "compilation"));
+  const [tab, setTab] = useState(pathTab); // compilation | collection | unofficial | publish | archive
 
   /* ------------------------------------------------------------------ */
   /* RESULTS COMPILATION VIEW (real-time teacher-uploaded results)        */
@@ -55,7 +62,7 @@ const ExamMarksCorrection = () => {
 
   // Re-load whenever the cascade / status filter changes (real-time filtering)
   // while on the compilation tab.
-  useEffect(() => { if (tab === "compilation") loadCompilation(); }, [tab, loadCompilation]);
+  useEffect(() => { if (tab === "compilation" || tab === "unofficial" || tab === "publish" || tab === "archive") loadCompilation(); }, [tab, loadCompilation]);
 
   const cmpRows = useMemo(() => {
     const rows = cmpData?.results || [];
@@ -68,32 +75,39 @@ const ExamMarksCorrection = () => {
     const program = norm(cascade.program);
     const semester = norm(cascade.semester);
     const section = norm(cascade.section);
-    if (!program && !semester && !section) {
-      toast?.("Select at least Program, Semester or Section to define a compilation scope", { type: "warning" });
+    const department = norm(cascade.department);
+    if (!department || !program || !semester) {
+      toast?.("Select Department, Program and Semester to compile submitted teacher results", { type: "warning" });
       return;
     }
-    const draftInScope = cmpData?.draft ?? 0;
-    if (draftInScope === 0) {
-      toast?.("No draft results in this scope to compile — everything is already published/locked.", { type: "info" });
-      return;
-    }
-    if (!confirm(`Compile ${draftInScope} draft result(s) into Marks Collection for review?`)) return;
+    if (!confirm(`Compile submitted results for ${department} / ${program} / Semester ${semester} into Results Collection?`)) return;
     setCompilingScope(true);
     try {
-      const res = await api.exam.compileResults({ program: program || undefined, semester: semester || undefined, section: section || undefined });
-      setLastCompile(res); // §1.4.2 surface auto-gazette + transcript result
-      const gz = res.gazette ? ` · Gazette "${res.gazette.title}" prepared` : "";
-      toast?.(`Compiled ${res.compiled} result(s) into Marks Collection${gz}`, { type: "success" });
-      await loadCompilation(); // re-sync so locked status shows immediately
+      const res = await api.exam.compileResults({ department, program, semester });
+      setLastCompile(res);
+      toast?.(`Compiled ${res.students || res.compiled} student(s) into Results Collection`, { type: "success" });
+      await loadCompilation();
     } catch (e) { toast?.(e?.message || "Compilation failed", { type: "error" }); }
     finally { setCompilingScope(false); }
   };
 
+  const unofficialScope = async () => {
+    const department = norm(cascade.department); const program = norm(cascade.program); const semester = norm(cascade.semester);
+    if (!department || !program || !semester) { toast?.("Select Department, Program and Semester before unofficial declaration", { type: "warning" }); return; }
+    setFinalizing(true);
+    try {
+      const res = await api.exam.declareUnofficial({ department, program, semester });
+      toast?.(`Unofficial result declared for ${res.students} student(s)`, { type: "success" });
+      await loadCompilation();
+    } catch (e) { toast?.(e?.message || "Unofficial declaration failed", { type: "error" }); }
+    finally { setFinalizing(false); }
+  };
+
   const finalizeScope = async () => {
     const department = norm(cascade.department); const program = norm(cascade.program); const semester = norm(cascade.semester);
-    if (!department || !program || !semester) { toast?.("Select Department, Program and Semester before finalizing", { type: "warning" }); return; }
+    if (!department || !program || !semester) { toast?.("Select Department, Program and Semester before official finalization", { type: "warning" }); return; }
     setFinalizing(true);
-    try { const res = await api.exam.finalizeResults({ department, program, semester }); toast?.(`${res.finalized} result(s) finalized and moved to Result Publishing`, { type: "success" }); await loadCompilation(); reload(); }
+    try { await api.exam.finalizeResults({ department, program, semester }); toast?.("Scope officially finalized. Declare official results to archive.", { type: "success" }); await loadCompilation(); reload(); }
     catch (e) { toast?.(e?.message || "Finalization failed", { type: "error" }); }
     finally { setFinalizing(false); }
   };
@@ -127,7 +141,7 @@ const ExamMarksCorrection = () => {
     const department = norm(cascade.department); const program = norm(cascade.program); const semester = norm(cascade.semester);
     if (!department || !program || !semester) { toast?.("Select Department, Program and Semester before publishing", { type: "warning" }); return; }
     setPublishingScope(true);
-    try { const res = await api.exam.publishResults({ department, program, semester }); toast?.(`Published ${res.published} result(s) and issued ${res.transcriptsIssued} transcript(s)`, { type: "success" }); reload(); await loadCompilation(); }
+    try { const res = await api.exam.publishResults({ department, program, semester }); toast?.(`Official result declared and archived for ${res.students || res.published} student(s)`, { type: "success" }); reload(); await loadCompilation(); }
     catch (e) { toast?.(e?.message || "Publishing failed", { type: "error" }); }
     finally { setPublishingScope(false); }
   };
@@ -234,21 +248,23 @@ const ExamMarksCorrection = () => {
   return (
     <div>
       <PageHeader
-        title="Results Compilation"
-        subtitle="View teacher-uploaded component results in real time, compile by scope, and publish to student transcripts."
+        title="Result Lifecycle"
+        subtitle="Department → Program → Semester compilation of teacher-submitted results. Unofficial declaration, official finalization, then read-only archive. No role can edit locked marks."
         icon="Layers"
-        breadcrumb={["Exam Controller", "Results Compilation"]}
+        breadcrumb={["Exam Controller", "Result Lifecycle"]}
       />
 
       {/* TAB SWITCHER */}
       <div className="flex items-center gap-2 mb-5 flex-wrap">
-        <TabBtn id="compilation" icon={Layers} label="Results & Compilation" />
-        <TabBtn id="collection" icon={Table2} label="Marks Collection" />
-        <TabBtn id="publish" icon={ListChecks} label="Result Publishing" />
+        <TabBtn id="compilation" icon={Layers} label="Results Compilation" />
+        <TabBtn id="collection" icon={Table2} label="Results Collection" />
+        <TabBtn id="unofficial" icon={Send} label="Unofficial Declaration" />
+        <TabBtn id="publish" icon={ListChecks} label="Official Declaration" />
+        <TabBtn id="archive" icon={Lock} label="Archive" />
       </div>
 
       {/* ============================= COMPILATION TAB ============================= */}
-      {tab === "compilation" && (
+      {(tab === "compilation" || tab === "unofficial") && (
         <div className="space-y-4">
           {/* 1.4 — reusable cascading smart filters */}
           <CascadeFilters
@@ -263,28 +279,32 @@ const ExamMarksCorrection = () => {
             </button>
             <select value={statusF} onChange={(e) => setStatusF(e.target.value)} className="input-base text-sm py-2">
               <option value="all">All Status</option>
-              <option value="DRAFT">Draft (editable)</option>
-              <option value="PUBLISHED">Published (locked)</option>
+              <option value="SUBMITTED">Submitted</option>
+              <option value="COMPILED">Compiled</option>
+              <option value="UNOFFICIAL_DECLARED">Unofficial</option>
+              <option value="OFFICIAL_FINALIZED">Official</option>
+              <option value="ARCHIVED">Archived</option>
             </select>
             <div className="ml-auto">
               <div className="flex gap-2">
-                <button onClick={compileScope} disabled={compilingScope || (cmpData?.draft ?? 0) === 0} className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2 disabled:opacity-50"><Layers size={14} /> {compilingScope ? "Compiling…" : "Compile to Marks Collection"}</button>
-                <button onClick={finalizeScope} disabled={finalizing || !norm(cascade.department) || !norm(cascade.program) || !norm(cascade.semester)} className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2 disabled:opacity-50"><Lock size={14} /> {finalizing ? "Finalizing…" : "Finalize Scope"}</button>
+                <button onClick={compileScope} disabled={compilingScope} className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2 disabled:opacity-50"><Layers size={14} /> {compilingScope ? "Compiling…" : "Compile to Results Collection"}</button>
+                <button onClick={unofficialScope} disabled={finalizing} className="btn-secondary text-sm py-2 px-4 inline-flex items-center gap-2 disabled:opacity-50"><Send size={14} /> Declare Unofficial</button>
+                <button onClick={finalizeScope} disabled={finalizing || !norm(cascade.department) || !norm(cascade.program) || !norm(cascade.semester)} className="btn-primary text-sm py-2 px-4 inline-flex items-center gap-2 disabled:opacity-50"><Lock size={14} /> {finalizing ? "Finalizing…" : "Official Finalize"}</button>
               </div>
             </div>
           </div>
           <p className="text-[11px] text-muted-app -mt-1">
-            Compile places teacher-entered results in <b>Marks Collection</b> for read-only review. Finalize by Department / Program / Semester moves the scope into <b>Result Publishing</b> and immediately locks teacher edits. Transcripts are issued only when the finalized scope is published.
+            Only teacher-submitted courses compile. Flow: Results Collection → Unofficial declaration → Official finalize → Archive. No role can edit after submit.
           </p>
 
           {/* §1.4.2 / §1.5 — surface the auto-Gazette + transcript flow after compile */}
           {lastCompile && (
             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="card-base p-4 border-l-4 border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20">
-              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-2 mb-2"><FileCheck2 size={16} /> Compilation complete — available in Marks Collection</p>
+              <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-2 mb-2"><FileCheck2 size={16} /> Compilation complete — available in Results Collection</p>
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                 <div className="surface border border-app rounded-lg p-2.5"><p className="text-[10px] uppercase text-muted-app">Offerings</p><p className="font-bold text-app">{lastCompile.offerings}</p></div>
                 <div className="surface border border-app rounded-lg p-2.5"><p className="text-[10px] uppercase text-muted-app">Results Compiled</p><p className="font-bold text-app">{lastCompile.compiled}</p></div>
-                <div className="surface border border-app rounded-lg p-2.5"><p className="text-[10px] uppercase text-muted-app inline-flex items-center gap-1"><GraduationCap size={11} /> Workflow Stage</p><p className="font-bold text-app">Marks Collection</p></div>
+                <div className="surface border border-app rounded-lg p-2.5"><p className="text-[10px] uppercase text-muted-app inline-flex items-center gap-1"><GraduationCap size={11} /> Workflow Stage</p><p className="font-bold text-app">Results Collection</p></div>
                 <div className="surface border border-app rounded-lg p-2.5">
                   <p className="text-[10px] uppercase text-muted-app inline-flex items-center gap-1"><FileCheck2 size={11} /> Auto-Gazette</p>
                   {lastCompile.gazette
@@ -292,7 +312,7 @@ const ExamMarksCorrection = () => {
                     : <p className="font-semibold text-muted-app">Not created (no rows)</p>}
                 </div>
               </div>
-              <p className="text-[11px] text-muted-app mt-2">Review details in Marks Collection, then finalize the Department / Program / Semester scope to move it into Result Publishing.</p>
+              <p className="text-[11px] text-muted-app mt-2">Review in Results Collection, declare unofficial, then official finalize and archive.</p>
             </motion.div>
           )}
 
@@ -410,7 +430,7 @@ const ExamMarksCorrection = () => {
           </div>
 
           {!offeringId ? (
-            <EmptyState message="Select a course offering to enter and recompute marks." />
+            <EmptyState message="Select a course offering to review collected marks (read-only)." />
           ) : sheetErr ? (
             <ErrorState message={sheetErr} onRetry={() => loadSheet(offeringId)} />
           ) : sheetLoading ? (
@@ -497,8 +517,8 @@ const ExamMarksCorrection = () => {
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
               <StatCard title="Total Results" value={stats.total} icon="ClipboardList" color="blue" delay={0.05} />
-              <StatCard title="Draft (Unpublished)" value={stats.draft} icon="Edit3" color="amber" delay={0.1} />
-              <StatCard title="Published" value={stats.published} icon="CheckCircle2" color="emerald" delay={0.15} />
+              <StatCard title="Unofficial / Pending Official" value={stats.draft} icon="Edit3" color="amber" delay={0.1} />
+              <StatCard title="Official / Archived" value={stats.published} icon="CheckCircle2" color="emerald" delay={0.15} />
             </div>
 
             <CascadeFilters value={cascade} onChange={setCascade} fields={["department", "program", "semester"]} />
@@ -510,10 +530,10 @@ const ExamMarksCorrection = () => {
                 </div>
                 <div className="flex gap-2"><select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="input-base text-sm flex-1">
                   <option value="all">All Status</option>
-                  <option value="DRAFT">Draft</option>
-                  <option value="FINALIZED">Awaiting Publication</option>
-                  <option value="PUBLISHED">Published</option>
-                </select><button onClick={publishScope} disabled={publishingScope || !norm(cascade.department) || !norm(cascade.program) || !norm(cascade.semester)} className="btn-primary text-sm px-3 disabled:opacity-50">{publishingScope ? "Publishing…" : "Publish Scope"}</button></div>
+                  <option value="UNOFFICIAL_DECLARED">Unofficial</option>
+                  <option value="OFFICIAL_FINALIZED">Official finalized</option>
+                  <option value="ARCHIVED">Archived</option>
+                </select><button onClick={publishScope} disabled={publishingScope || !norm(cascade.department) || !norm(cascade.program) || !norm(cascade.semester)} className="btn-primary text-sm px-3 disabled:opacity-50">{publishingScope ? "Declaring…" : "Declare Official & Archive"}</button></div>
               </div>
             </div>
 
@@ -559,3 +579,4 @@ const ExamMarksCorrection = () => {
 };
 
 export default ExamMarksCorrection;
+ksCorrection;

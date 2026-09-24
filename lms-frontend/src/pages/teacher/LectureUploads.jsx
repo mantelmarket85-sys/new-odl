@@ -224,7 +224,7 @@ const TeacherLectureUploads = () => {
         icon="Video"
         breadcrumb={["Teacher", "Recorded Lectures"]}
         actions={
-          subjects.length > 0 && (
+          allOfferings.length > 0 && (
             <button onClick={openUploadModal} className="btn-primary text-sm py-2 px-4 flex items-center gap-2">
               <Upload size={14} /> Upload Lecture
             </button>
@@ -239,7 +239,8 @@ const TeacherLectureUploads = () => {
           icon="Video"
           title="No lectures yet"
           description="You don't have any recorded lectures. Upload your first video lecture for one of your active courses."
-          action={undefined}
+          action={allOfferings.length > 0 ? openUploadModal : undefined}
+          actionLabel="Upload Lecture"
         />
       ) : (
         <>

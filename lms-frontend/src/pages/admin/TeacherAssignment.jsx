@@ -71,23 +71,10 @@ const TeacherAssignment = () => {
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  // §3.2 — reflect newly-created distributions in real time: refresh whenever
-  // the coordinator navigates back to this page, on window focus, and on a
-  // short interval so multi-user changes appear without a manual refresh.
+  // Refresh when the coordinator navigates back to this page (e.g. after
+  // creating a distribution). No background polling — updates happen on
+  // navigation or after an explicit action.
   useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [location.key]);
-  useEffect(() => {
-    const t = setInterval(() => reload(), 15000);
-    const onFocus = () => reload();
-    const onVisible = () => { if (document.visibilityState === "visible") reload(); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      clearInterval(t);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const openAssign = (d) => { setAssigning(d); setAssignTeacher(d.teacherId || ""); };
 

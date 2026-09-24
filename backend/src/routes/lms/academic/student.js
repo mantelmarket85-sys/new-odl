@@ -282,7 +282,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     prisma.quiz.count({
       where: { offeringId: { in: offeringIds }, isPublished: true, isDeleted: false, attempts: { none: { studentId } } },
     }),
-    prisma.courseResult.count({ where: { studentId, status: 'PUBLISHED' } }),
+    prisma.courseResult.count({ where: { studentId, status: { in: ['UNOFFICIAL_DECLARED', 'OFFICIAL_FINALIZED', 'ARCHIVED', 'PUBLISHED'] } } }),
   ]);
 
   // Attendance overall
@@ -1344,7 +1344,7 @@ router.post('/quizzes/:id/submit', validate([
 router.get('/results', asyncHandler(async (req, res) => {
   const studentId = req.lmsUser.id;
   const results = await prisma.courseResult.findMany({
-    where: { studentId, status: 'PUBLISHED' },
+    where: { studentId, status: { in: ['UNOFFICIAL_DECLARED', 'OFFICIAL_FINALIZED', 'ARCHIVED', 'PUBLISHED'] } },
     include: { offering: { include: { course: true, term: true } } },
     orderBy: { publishedAt: 'desc' },
   });
@@ -1873,19 +1873,29 @@ router.get('/live-classes', asyncHandler(async (req, res) => {
     include: { offering: { include: { course: true, teacher: { include: { profile: true } } } } },
     orderBy: { scheduledAt: 'desc' },
   });
-  res.json({ liveClasses: items.map((lc) => ({
-    id: lc.id,
-    title: lc.title,
-    description: lc.description,
-    scheduledAt: lc.scheduledAt,
-    durationMin: lc.durationMin,
-    status: lc.status,
-    joinUrl: lc.joinUrl,
-    recordingUrl: lc.recordingUrl,
-    courseCode: lc.offering.course.code,
-    courseTitle: lc.offering.course.title,
-    teacher: lc.offering.teacher && lc.offering.teacher.profile ? lc.offering.teacher.profile.fullName : 'TBA',
-  })) });
+  const bbbConfigured = bbb.isConfigured();
+  res.json({
+    bbbConfigured,
+    liveClasses: items.map((lc) => {
+      const status = (lc.status || '').toUpperCase();
+      const canJoin = ['LIVE', 'SCHEDULED'].includes(status) && (bbbConfigured || !!lc.joinUrl);
+      return {
+        id: lc.id,
+        title: lc.title,
+        description: lc.description,
+        scheduledAt: lc.scheduledAt,
+        durationMin: lc.durationMin,
+        status: lc.status,
+        joinUrl: lc.joinUrl,
+        recordingUrl: lc.recordingUrl,
+        bbbConfigured,
+        canJoin,
+        courseCode: lc.offering.course.code,
+        courseTitle: lc.offering.course.title,
+        teacher: lc.offering.teacher && lc.offering.teacher.profile ? lc.offering.teacher.profile.fullName : 'TBA',
+      };
+    }),
+  });
 }));
 
 // ============================================================
@@ -2969,7 +2979,7 @@ router.get('/activity', asyncHandler(async (req, res) => {
       orderBy: { registeredAt: 'desc' }, take: 50,
     }),
     prisma.courseResult.findMany({
-      where: { studentId, status: 'PUBLISHED' },
+      where: { studentId, status: { in: ['UNOFFICIAL_DECLARED', 'OFFICIAL_FINALIZED', 'ARCHIVED', 'PUBLISHED'] } },
       include: { offering: { include: { course: true } } },
       orderBy: { publishedAt: 'desc' }, take: 50,
     }),

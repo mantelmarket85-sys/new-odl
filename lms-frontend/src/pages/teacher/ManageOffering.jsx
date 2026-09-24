@@ -4,8 +4,9 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Users, CalendarCheck, FileText, FileQuestion, Award, Megaphone,
   Plus, Trash2, Save, CheckCircle2, Loader2, Eye, Upload, Download, X,
-  Sparkles, ClipboardList, FileSpreadsheet, FileDown, Search, Filter,
+  Sparkles, ClipboardList, FileSpreadsheet, FileDown, Search, Filter, Lock, Send,
 } from "lucide-react";
+import GradebookPinGate from "../../components/teacher/GradebookPinGate";
 import PageHeader from "../../components/common/PageHeader";
 import Badge from "../../components/common/Badge";
 import Modal from "../../components/common/Modal";
@@ -24,6 +25,7 @@ const TABS = [
   { key: "quizzes", label: "Quizzes", icon: FileQuestion },
   { key: "marks", label: "Marks", icon: ClipboardList },
   { key: "gradebook", label: "Gradebook", icon: Award },
+  { key: "review", label: "Review & Submit", icon: Send },
   { key: "announcements", label: "Announcements", icon: Megaphone },
 ];
 
@@ -116,8 +118,9 @@ const ManageOffering = () => {
           {tab === "attendance" && <AttendanceTab offeringId={offeringId} />}
           {tab === "assignments" && <AssignmentsTab offeringId={offeringId} />}
           {tab === "quizzes" && <QuizzesTab offeringId={offeringId} />}
-          {tab === "marks" && <MarksTab offeringId={offeringId} />}
-          {tab === "gradebook" && <GradebookTab offeringId={offeringId} />}
+          {tab === "marks" && <GradebookPinGate><MarksTab offeringId={offeringId} /></GradebookPinGate>}
+          {tab === "gradebook" && <GradebookPinGate><GradebookTab offeringId={offeringId} /></GradebookPinGate>}
+          {tab === "review" && <GradebookPinGate><ReviewTab offeringId={offeringId} /></GradebookPinGate>}
           {tab === "announcements" && <AnnouncementsTab offeringId={offeringId} />}
         </>
       )}
@@ -806,14 +809,17 @@ function MarksTab({ offeringId }) {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.teacher.gradebook(offeringId), [offeringId]);
   const rows = useMemo(() => data?.rows || [], [data]);
-  // Client requirement 2.3 — the component columns (and their weightage) come
-  // from the coordinator's CourseWeightage, identical to the Gradebook.
+  const items = useMemo(() => data?.offering?.items || [], [data]);
   const components = useMemo(() => data?.offering?.components || [
     { key: "assignment", label: "Assignment", marksField: "assignmentMarks", maxField: "assignmentMax", weight: 0 },
     { key: "quiz", label: "Quiz", marksField: "quizMarks", maxField: "quizMax", weight: 0 },
     { key: "mid", label: "Mid", marksField: "midMarks", maxField: "midMax", weight: 0 },
     { key: "final", label: "Final", marksField: "finalMarks", maxField: "finalMax", weight: 0 },
   ], [data]);
+  // Prefer per-item columns (each Quiz / Assignment / Lab listed individually).
+  const columns = items.length
+    ? items
+    : components.map((c) => ({ ...c, itemWeight: c.weight, editable: true, kind: c.key }));
   const [edit, setEdit] = useState(null); // studentId being edited
   const [form, setForm] = useState({});
   const [busy, setBusy] = useState(false);
@@ -821,7 +827,7 @@ function MarksTab({ offeringId }) {
   const startEdit = (r) => {
     setEdit(r.studentId);
     const f = {};
-    components.forEach((c) => { f[c.marksField] = r[c.marksField] ?? 0; });
+    columns.forEach((c) => { if (c.marksField) f[c.marksField] = r[c.marksField] ?? 0; });
     setForm(f);
   };
 
@@ -842,21 +848,39 @@ function MarksTab({ offeringId }) {
     catch (e) { toast(e.message, { type: "error" }); }
   };
 
+  const cellDisplay = (r, col) => {
+    const cell = r.cells?.[col.key];
+    if (cell) {
+      if (cell.pending || cell.converted == null) return <span className="font-medium text-slate-400">Pending</span>;
+      return (
+        <span className="text-app">
+          {Number(cell.converted).toFixed(2)}
+          {cell.obtained != null && cell.total != null ? (
+            <span className="block text-[9px] font-normal text-muted-app">{cell.obtained}/{cell.total}</span>
+          ) : null}
+        </span>
+      );
+    }
+    const v = r[col.marksField];
+    if (v == null || (Number(v) === 0 && r.resultStatus !== "PUBLISHED")) return <span className="font-medium text-slate-400">Pending</span>;
+    return <span className="text-app">{v}</span>;
+  };
+
   if (loading) return <Skeleton className="h-48 w-full rounded-2xl" />;
   if (error) return <ErrorState description={error} onRetry={reload} />;
   if (rows.length === 0) return <EmptyState icon="ClipboardList" title="No students" description="No enrolled students to record marks for." />;
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-app">Add, edit, or delete each student's component marks. Changes save in real time and notify the student.</p>
+      <p className="text-xs text-muted-app">Each quiz, assignment and lab is listed individually. Converted marks = (obtained / total) × item weight, capped at the item weight. Mid / Final can be entered here.</p>
       <div className="card-base overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
             <th className="px-3 py-3">Student</th>
-            {components.map((c) => (
-              <th key={c.key} className="px-3 py-3 text-center">{c.label}{c.weight ? <span className="block text-[9px] font-normal normal-case text-muted-app">{c.weight}%</span> : null}</th>
+            {columns.map((c) => (
+              <th key={c.key} className="px-3 py-3 text-center">{c.label}{(c.itemWeight != null || c.weight) ? <span className="block text-[9px] font-normal normal-case text-muted-app">wt {c.itemWeight ?? c.weight}</span> : null}</th>
             ))}
-            <th className="px-3 py-3 text-center">Total%</th><th className="px-3 py-3 text-center">Grade</th><th className="px-3 py-3 text-right">Actions</th>
+            <th className="px-3 py-3 text-center">Total</th><th className="px-3 py-3 text-center">Grade</th><th className="px-3 py-3 text-right">Actions</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => {
@@ -864,19 +888,19 @@ function MarksTab({ offeringId }) {
               return (
                 <tr key={r.studentId} className="border-t border-slate-100 dark:border-slate-800">
                   <td className="px-3 py-2"><p className="font-semibold text-app">{r.name}</p><p className="text-xs font-mono text-muted-app">{r.rollNumber}</p></td>
-                  {components.map((c) => (
-                    <td key={c.marksField} className="px-3 py-2 text-center">
-                      {editing ? (
+                  {columns.map((c) => (
+                    <td key={c.key} className="px-3 py-2 text-center">
+                      {editing && c.editable && c.marksField ? (
                         <input type="number" value={form[c.marksField] ?? ""} onChange={(e) => setForm({ ...form, [c.marksField]: e.target.value })} className="input-base w-16 text-center text-sm" />
-                      ) : (
-                        <span className="text-app">{r[c.marksField] ?? 0}</span>
-                      )}
+                      ) : cellDisplay(r, c)}
                     </td>
                   ))}
-                  <td className="px-3 py-2 text-center font-bold">{r.totalPercent != null ? `${r.totalPercent}%` : "—"}</td>
+                  <td className="px-3 py-2 text-center font-bold">{r.totalPercent != null ? r.totalPercent : "—"}</td>
                   <td className="px-3 py-2 text-center">{r.letterGrade ? <Badge color={r.letterGrade === "F" ? "rose" : "emerald"}>{r.letterGrade}</Badge> : "—"}</td>
                   <td className="px-3 py-2 text-right whitespace-nowrap">
-                    {editing ? (
+                    {["SUBMITTED", "LOCKED", "COMPILED", "UNOFFICIAL_DECLARED", "OFFICIAL_FINALIZED", "ARCHIVED", "PUBLISHED", "FINALIZED"].includes(r.resultStatus) ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700"><Lock size={11} /> Locked</span>
+                    ) : editing ? (
                       <>
                         <button onClick={() => save(r)} disabled={busy} className="btn-primary text-xs mr-1">{busy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} Save</button>
                         <button onClick={() => setEdit(null)} className="btn-secondary text-xs">Cancel</button>
@@ -903,39 +927,44 @@ function GradebookTab({ offeringId }) {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.teacher.gradebook(offeringId), [offeringId]);
   const rows = useMemo(() => data?.rows || [], [data]);
-  // Client requirement 2.3 — components (+ weightage) come from the
-  // coordinator's CourseWeightage, identical to the Marks module.
+  const items = useMemo(() => data?.offering?.items || [], [data]);
   const components = useMemo(() => data?.offering?.components || [
     { key: "assignment", label: "Assignment", marksField: "assignmentMarks", maxField: "assignmentMax", weight: 0 },
     { key: "quiz", label: "Quiz", marksField: "quizMarks", maxField: "quizMax", weight: 0 },
     { key: "mid", label: "Mid", marksField: "midMarks", maxField: "midMax", weight: 0 },
     { key: "final", label: "Final", marksField: "finalMarks", maxField: "finalMax", weight: 0 },
   ], [data]);
+  const columns = items.length
+    ? items
+    : components.map((c) => ({ ...c, itemWeight: c.weight, editable: true, kind: c.key }));
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  const locked = !!data?.offering?.locked;
 
   useEffect(() => {
     const init = {};
     rows.forEach((r) => {
       const e = {};
-      components.forEach((c) => {
-        if (c.key === "assignment") e[c.marksField] = r.assignmentMarks ?? r.computedAssignment ?? 0;
-        else if (c.key === "quiz") e[c.marksField] = r.quizMarks ?? r.computedQuiz ?? 0;
+      columns.forEach((c) => {
+        if (!c.editable || !c.marksField) return;
+        if (c.kind === "assignment") e[c.marksField] = r.assignmentMarks ?? r.computedAssignment ?? 0;
+        else if (c.kind === "quiz") e[c.marksField] = r.quizMarks ?? r.computedQuiz ?? 0;
         else e[c.marksField] = r[c.marksField] ?? 0;
       });
       init[r.studentId] = e;
     });
     setEdits(init);
-  }, [rows, components]);
+  }, [rows, columns]);
 
   const setVal = (sid, field, val) => setEdits((e) => ({ ...e, [sid]: { ...e[sid], [field]: val } }));
 
   const save = async () => {
+    if (locked) { toast("Results are locked and cannot be edited by any role.", { type: "error" }); return; }
     const results = rows.map((r) => {
       const row = { studentId: r.studentId };
       components.forEach((c) => {
-        row[c.marksField] = parseFloat(edits[r.studentId]?.[c.marksField]) || 0;
+        const edited = edits[r.studentId]?.[c.marksField];
+        row[c.marksField] = edited != null && edited !== "" ? parseFloat(edited) : (parseFloat(r[c.marksField]) || 0);
         row[c.maxField] = r[c.maxField] ?? 100;
       });
       return row;
@@ -946,11 +975,40 @@ function GradebookTab({ offeringId }) {
     finally { setSaving(false); }
   };
 
-  const publish = async () => {
-    setPublishing(true);
-    try { const res = await api.teacher.publishResults(offeringId); toast(res.message || "Published", { type: "success" }); await reload(); }
-    catch (e) { toast(e.message, { type: "error" }); }
-    finally { setPublishing(false); }
+  const cellDisplay = (r, col) => {
+    const cell = r.cells?.[col.key];
+    if (cell) {
+      if (cell.pending || cell.converted == null) return <span className="font-medium text-slate-400">Pending</span>;
+      return (
+        <span className="text-app">
+          {Number(cell.converted).toFixed(2)}
+          {cell.obtained != null && cell.total != null ? (
+            <span className="block text-[9px] font-normal text-muted-app">{cell.obtained}/{cell.total}</span>
+          ) : null}
+        </span>
+      );
+    }
+    const v = r[col.marksField];
+    if (v == null || (Number(v) === 0 && r.resultStatus !== "PUBLISHED")) return <span className="font-medium text-slate-400">Pending</span>;
+    return <span className="text-app">{v}</span>;
+  };
+
+  const cellDisplay = (r, col) => {
+    const cell = r.cells?.[col.key];
+    if (cell) {
+      if (cell.pending || cell.converted == null) return <span className="font-medium text-slate-400">Pending</span>;
+      return (
+        <span className="text-app">
+          {Number(cell.converted).toFixed(2)}
+          {cell.obtained != null && cell.total != null ? (
+            <span className="block text-[9px] font-normal text-muted-app">{cell.obtained}/{cell.total}</span>
+          ) : null}
+        </span>
+      );
+    }
+    const v = r[col.marksField];
+    if (v == null || (Number(v) === 0 && r.resultStatus !== "PUBLISHED")) return <span className="font-medium text-slate-400">Pending</span>;
+    return <span className="text-app">{v}</span>;
   };
 
   if (loading) return <Skeleton className="h-48 w-full rounded-2xl" />;
@@ -968,27 +1026,31 @@ function GradebookTab({ offeringId }) {
           ))}
         </div>
         <div className="flex gap-2">
-          <button onClick={save} disabled={saving} className="btn-secondary text-sm">{saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Draft</button>
-          <button onClick={publish} disabled={publishing} className="btn-primary text-sm">{publishing ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Publish</button>
+          <button onClick={save} disabled={saving || locked} className="btn-secondary text-sm">{saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save Draft</button>
+          {locked && <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><Lock size={12} /> Locked</span>}
         </div>
       </div>
       <div className="card-base overflow-x-auto">
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">
             <th className="px-3 py-3">Student</th>
-            {components.map((c) => (
-              <th key={c.key} className="px-3 py-3 text-center">{c.label}{c.weight ? <span className="block text-[9px] font-normal normal-case text-muted-app">{c.weight}%</span> : null}</th>
+            {columns.map((c) => (
+              <th key={c.key} className="px-3 py-3 text-center">{c.label}{(c.itemWeight != null || c.weight) ? <span className="block text-[9px] font-normal normal-case text-muted-app">wt {c.itemWeight ?? c.weight}</span> : null}</th>
             ))}
-            <th className="px-3 py-3 text-center">Total%</th><th className="px-3 py-3 text-center">Grade</th><th className="px-3 py-3 text-center">Status</th>
+            <th className="px-3 py-3 text-center">Total</th><th className="px-3 py-3 text-center">Grade</th><th className="px-3 py-3 text-center">Status</th>
           </tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.studentId} className="border-t border-slate-100 dark:border-slate-800">
                 <td className="px-3 py-2"><p className="font-semibold text-app">{r.name}</p><p className="text-xs font-mono text-muted-app">{r.rollNumber}</p></td>
-                {components.map((c) => (
-                  <td key={c.marksField} className="px-3 py-2 text-center"><input type="number" value={edits[r.studentId]?.[c.marksField] ?? ""} onChange={(e) => setVal(r.studentId, c.marksField, e.target.value)} className="input-base w-16 text-center text-sm" /></td>
+                {columns.map((c) => (
+                  <td key={c.key} className="px-3 py-2 text-center">
+                    {c.editable && c.marksField && !locked ? (
+                      <input type="number" value={edits[r.studentId]?.[c.marksField] ?? ""} onChange={(e) => setVal(r.studentId, c.marksField, e.target.value)} className="input-base w-16 text-center text-sm" />
+                    ) : cellDisplay(r, c)}
+                  </td>
                 ))}
-                <td className="px-3 py-2 text-center font-bold">{r.totalPercent != null ? `${r.totalPercent}%` : "—"}</td>
+                <td className="px-3 py-2 text-center font-bold">{r.totalPercent != null ? r.totalPercent : "—"}</td>
                 <td className="px-3 py-2 text-center">{r.letterGrade ? <Badge color={r.letterGrade === "F" ? "rose" : "emerald"}>{r.letterGrade}</Badge> : "—"}</td>
                 <td className="px-3 py-2 text-center text-xs">{r.resultStatus ? <Badge color={r.resultStatus === "PUBLISHED" ? "emerald" : "slate"} size="sm">{r.resultStatus.toLowerCase()}</Badge> : "—"}</td>
               </tr>
@@ -996,7 +1058,80 @@ function GradebookTab({ offeringId }) {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-app">Tip: Assignment/Quiz columns are pre-filled from real submissions &amp; quiz attempts. Adjust then Save Draft, and Publish when ready (visible to students).</p>
+      <p className="text-xs text-muted-app">Columns follow the Course Coordinator weightage only. Converted marks = (obtained / total) × item weight. Use Review &amp; Submit (Gradebook PIN) to send the locked result to the Exam Controller. Students never see draft marks.</p>
+    </div>
+  );
+}
+
+/* ---------------- Review & Submit ---------------- */
+function ReviewTab({ offeringId }) {
+  const { toast } = useToast();
+  const { data, loading, error, reload } = useApi(() => api.teacher.offeringReview(offeringId), [offeringId]);
+  const review = data?.review;
+  const [pin, setPin] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (!/^\d{5}$/.test(pin)) { toast("Re-enter your 5-digit Gradebook PIN to submit", { type: "error" }); return; }
+    if (!window.confirm("Submit this course result to the Exam Controller? Marks will lock for every role, including Super Admin.")) return;
+    setBusy(true);
+    try {
+      const res = await api.teacher.submitResult(offeringId, pin);
+      toast(res.message || "Submitted and locked", { type: "success" });
+      setPin("");
+      await reload();
+    } catch (e) { toast(e.message, { type: "error" }); }
+    finally { setBusy(false); }
+  };
+
+  if (loading) return <Skeleton className="h-48 w-full rounded-2xl" />;
+  if (error) return <ErrorState description={error} onRetry={reload} />;
+  if (!review) return <EmptyState icon="Award" title="No review" description="Gradebook data is not available yet." />;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid sm:grid-cols-4 gap-3">
+        <div className="card-base p-3"><p className="text-[10px] uppercase text-muted-app">Students</p><p className="font-bold text-app">{review.completeStudents}/{review.totalStudents} complete</p></div>
+        <div className="card-base p-3"><p className="text-[10px] uppercase text-muted-app">Weightage</p><p className="font-bold text-app">{review.totalWeight}% {review.weightOk ? "OK" : "must be 100%"}</p></div>
+        <div className="card-base p-3"><p className="text-[10px] uppercase text-muted-app">Status</p><p className="font-bold text-app">{review.status}</p></div>
+        <div className="card-base p-3"><p className="text-[10px] uppercase text-muted-app">Ready</p><p className="font-bold text-app">{review.ready ? "Yes" : "No"}</p></div>
+      </div>
+      {review.missingAssessments?.length > 0 && (
+        <div className="card-base p-3 text-sm text-amber-700">
+          Create all coordinator-configured assessments first: {review.missingAssessments.map((m) => `${m.kind} ${m.created}/${m.expected}`).join(", ")}.
+        </div>
+      )}
+      <div className="card-base overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="bg-slate-50 dark:bg-slate-900 text-left text-xs font-semibold text-slate-600 uppercase">
+            <th className="px-3 py-2">Student</th><th className="px-3 py-2 text-center">%</th><th className="px-3 py-2 text-center">Grade</th><th className="px-3 py-2 text-center">GP</th><th className="px-3 py-2">Status</th>
+          </tr></thead>
+          <tbody>
+            {(review.students || []).map((s) => (
+              <tr key={s.studentId} className="border-t border-slate-100 dark:border-slate-800">
+                <td className="px-3 py-2"><p className="font-semibold text-app">{s.name}</p><p className="text-xs font-mono text-muted-app">{s.rollNumber}</p></td>
+                <td className="px-3 py-2 text-center">{s.totalPercent ?? "—"}</td>
+                <td className="px-3 py-2 text-center">{s.letterGrade || "—"}</td>
+                <td className="px-3 py-2 text-center">{s.gradePoints ?? "—"}</td>
+                <td className="px-3 py-2 text-xs">{s.incomplete ? "Incomplete" : s.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!review.locked && (
+        <div className="card-base p-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="text-[10px] uppercase font-bold text-muted-app block mb-1">Gradebook PIN</label>
+            <input type="password" inputMode="numeric" maxLength={5} value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 5))} className="input-base w-40 tracking-[0.3em] text-center" placeholder="•••••" />
+          </div>
+          <button onClick={submit} disabled={busy || !review.ready} className="btn-primary text-sm">
+            {busy ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Submit to Exam Controller
+          </button>
+          {!review.ready && <p className="text-xs text-muted-app">Complete every student and assessment before submitting.</p>}
+        </div>
+      )}
+      {review.locked && <p className="text-sm font-semibold text-emerald-700 inline-flex items-center gap-1"><Lock size={14} /> Submitted and locked. No role can edit these marks.</p>}
     </div>
   );
 }

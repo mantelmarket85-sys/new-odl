@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { RotateCcw } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { RotateCcw, CalendarClock, Save, Loader2 } from "lucide-react";
 import PageHeader from "../../components/common/PageHeader";
 import EnterpriseTable from "../../components/enterprise/EnterpriseTable";
 import FilterPanel, { buildLmsFilters } from "../../components/enterprise/FilterPanel";
@@ -15,12 +15,41 @@ import { useIsFocalPerson, stripCrossDeptFilters } from "../../utils/focalDept";
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : "—");
 
+const toLocalInput = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 const Withdraws = () => {
   const { toast } = useToast();
   const { data, loading, error, reload } = useApi(() => api.focal.withdraws(), []);
+  const { data: deadlineData, reload: reloadDeadline } = useApi(() => api.focal.getWithdrawDeadline(), []);
   const [filters, setFilters] = useState({ semester: "all", course: "all", program: "all", session: "all" });
   const isFocal = useIsFocalPerson(); // Req #3: hide cross-department filters for focal role
   const [restoring, setRestoring] = useState(null);
+  const [deadlineInput, setDeadlineInput] = useState("");
+  const [savingDeadline, setSavingDeadline] = useState(false);
+
+  useEffect(() => {
+    setDeadlineInput(toLocalInput(deadlineData?.deadline));
+  }, [deadlineData]);
+
+  const saveDeadline = async () => {
+    setSavingDeadline(true);
+    try {
+      const iso = deadlineInput ? new Date(deadlineInput).toISOString() : null;
+      await api.focal.setWithdrawDeadline(iso);
+      toast(iso ? "Withdrawal deadline saved — students see it immediately." : "Withdrawal deadline cleared.", { type: "success" });
+      await reloadDeadline();
+    } catch (e) {
+      toast(e.message || "Failed to save deadline", { type: "error" });
+    } finally {
+      setSavingDeadline(false);
+    }
+  };
 
   const rows = data?.withdraws || [];
   const filtered = useMemo(() => rows.filter((r) => {
@@ -86,6 +115,34 @@ const Withdraws = () => {
         <Skeleton className="h-96 rounded-2xl" />
       ) : (
         <>
+          <div className="card-base p-4 mb-4 flex flex-col md:flex-row md:items-end gap-3">
+            <div className="flex-1">
+              <p className="text-sm font-bold text-app flex items-center gap-1.5 mb-1">
+                <CalendarClock size={15} className="text-primary-600" /> Course withdrawal deadline
+              </p>
+              <p className="text-xs text-muted-app mb-2">
+                Students may withdraw up to and including this date. After it passes, the withdraw option is disabled. Leave blank to keep withdrawals open.
+              </p>
+              <input
+                type="datetime-local"
+                value={deadlineInput}
+                onChange={(e) => setDeadlineInput(e.target.value)}
+                className="input-base text-sm w-full md:max-w-xs"
+              />
+              {deadlineData?.deadline && (
+                <p className={`text-[11px] mt-1.5 font-semibold ${deadlineData.isPast ? "text-rose-600" : "text-emerald-600"}`}>
+                  {deadlineData.isPast ? "Deadline has passed — withdrawals are closed." : "Deadline is active."}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setDeadlineInput("")} className="btn-secondary text-sm" disabled={savingDeadline}>Clear</button>
+              <button onClick={saveDeadline} disabled={savingDeadline} className="btn-primary text-sm inline-flex items-center gap-1.5">
+                {savingDeadline ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Save deadline
+              </button>
+            </div>
+          </div>
+
           <div className="grid sm:grid-cols-4 gap-3 mb-4">
             <StatCard title="Total Withdrawals" value={rows.length} icon="LogOut" color="amber" />
             <StatCard title="This Term"         value={rows.length} icon="CalendarDays" color="cyan" delay={0.05} />

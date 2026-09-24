@@ -11,28 +11,28 @@
 //  stays consistent.
 // ============================================================
 
+const policy = require('./academicPolicy');
+
 // Ordered high → low. First threshold whose `min` <= percent wins.
+// Kept for callers that still read GRADE_SCALE; calculations use academicPolicy.
 const GRADE_SCALE = [
+  { min: 90, letter: 'A+', points: 4.0 },
   { min: 85, letter: 'A',  points: 4.0 },
-  { min: 80, letter: 'A-', points: 3.7 },
-  { min: 75, letter: 'B+', points: 3.3 },
-  { min: 71, letter: 'B',  points: 3.0 },
-  { min: 68, letter: 'B-', points: 2.7 },
-  { min: 64, letter: 'C+', points: 2.3 },
-  { min: 61, letter: 'C',  points: 2.0 },
-  { min: 58, letter: 'C-', points: 1.7 },
-  { min: 54, letter: 'D+', points: 1.3 },
+  { min: 80, letter: 'A-', points: 4.0 },
+  { min: 75, letter: 'B',  points: 3.5 },
+  { min: 70, letter: 'B-', points: 3.0 },
+  { min: 65, letter: 'C',  points: 2.5 },
+  { min: 60, letter: 'C-', points: 2.0 },
   { min: 50, letter: 'D',  points: 1.0 },
   { min: 0,  letter: 'F',  points: 0.0 },
 ];
 
-const PASS_PERCENT = 50;
+const PASS_PERCENT = policy.PASS_PERCENT;
 
-/** Map a percentage (0..100) to { letter, points }. */
-function gradeFromPercent(percent) {
-  const p = Math.max(0, Math.min(100, Number(percent) || 0));
-  const hit = GRADE_SCALE.find((g) => p >= g.min);
-  return { letter: hit.letter, points: hit.points };
+/** Map a percentage (0..100) to { letter, points } using the AUST 4.00 table. */
+function gradeFromPercent(percent, opts) {
+  const g = policy.gradeFromPercent(percent, opts);
+  return { letter: g.letter, points: g.points };
 }
 
 /**
@@ -45,20 +45,7 @@ function gradeFromPercent(percent) {
  * @returns {number}   total percentage rounded to 2 decimals
  */
 function computeWeightedPercent(r, w) {
-  const pct = (marks, max) => {
-    const m = Number(max) || 0;
-    if (m <= 0) return 0;
-    return (Number(marks) || 0) / m;
-  };
-  const total =
-    pct(r.assignmentMarks, r.assignmentMax) * (Number(w.assignmentWeight) || 0) +
-    pct(r.quizMarks, r.quizMax) * (Number(w.quizWeight) || 0) +
-    pct(r.midMarks, r.midMax) * (Number(w.midWeight) || 0) +
-    pct(r.finalMarks, r.finalMax) * (Number(w.finalWeight) || 0) +
-    // Lab / Semester-Project component (client requirement 2.3) — only
-    // contributes when the coordinator assigned it a weight.
-    pct(r.labMarks, r.labMax) * (Number(w.labWeight) || 0);
-  return Math.round(total * 100) / 100;
+  return policy.computeWeightedPercent(r, w);
 }
 
 /**
@@ -116,31 +103,31 @@ async function resolveOfferingWeights(prisma, offering) {
     }
   } catch (_) { cw = null; }
 
-  // Lab task weight and semester-project weight both feed the single "Lab"
-  // component in the gradebook/marks table.
-  const labWeightFromCw = cw ? ((Number(cw.labTaskWeight) || 0) + (Number(cw.semesterProjectWeight) || 0)) : 0;
-
-  const weights = cw
-    ? {
-        assignmentWeight: Number(cw.assignmentWeight) || 0,
-        quizWeight: Number(cw.quizWeight) || 0,
-        midWeight: Number(cw.midWeight) || 0,
-        finalWeight: Number(cw.finalWeight) || 0,
-        labWeight: labWeightFromCw,
-      }
-    : {
-        assignmentWeight: Number(offering.assignmentWeight) || 0,
-        quizWeight: Number(offering.quizWeight) || 0,
-        midWeight: Number(offering.midWeight) || 0,
-        finalWeight: Number(offering.finalWeight) || 0,
-        labWeight: 0,
-      };
+  const slotInfo = policy.slotsFromWeightage(cw, offering || {});
+  const weights = {
+    assignmentWeight: slotInfo.weights.assignmentWeight,
+    quizWeight: slotInfo.weights.quizWeight,
+    midWeight: slotInfo.weights.midWeight,
+    finalWeight: slotInfo.weights.finalWeight,
+    labWeight: slotInfo.weights.labWeight,
+    projectWeight: slotInfo.weights.projectWeight,
+  };
 
   const components = COMPONENT_DEFS
-    .filter((d) => d.key !== 'lab' || weights.labWeight > 0)
+    .filter((d) => (weights[d.weightKey] || 0) > 0)
     .map((d) => ({ key: d.key, label: d.label, weight: weights[d.weightKey] || 0, marksField: d.marksField, maxField: d.maxField }));
+  if ((weights.projectWeight || 0) > 0) {
+    components.push({ key: 'project', label: 'Project', weight: weights.projectWeight, marksField: 'projectMarks', maxField: 'projectMax' });
+  }
 
-  return { weights, components, source: cw ? 'coordinator' : 'offering' };
+  return {
+    weights,
+    components,
+    source: cw ? 'coordinator' : 'offering',
+    slots: slotInfo.slots,
+    counts: slotInfo.counts,
+    totalWeight: slotInfo.totalWeight,
+  };
 }
 
 module.exports = {
@@ -152,4 +139,6 @@ module.exports = {
   computeGPA,
   resolveOfferingWeights,
   COMPONENT_DEFS,
+  slotsFromWeightage: policy.slotsFromWeightage,
+  isImmutableStatus: policy.isImmutableStatus,
 };
