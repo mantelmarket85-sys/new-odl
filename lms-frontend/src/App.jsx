@@ -291,7 +291,7 @@ function App() {
           element={
             <TeacherOfferingPicker
               title="Marks & Gradebook"
-              subtitle="Select a course to enter marks and publish results"
+              subtitle="Select a course to enter marks and submit locked results to the Exam Controller"
               icon="Award"
               tab="marks"
               scope="marks"
@@ -430,6 +430,9 @@ function App() {
         <Route path="ufm" element={<ExamUFM />} />
         <Route path="absentees" element={<ExamAbsentees />} />
         <Route path="results-compilation" element={<ExamMarksCorrection />} />
+        <Route path="results-collection" element={<ExamMarksCorrection />} />
+        <Route path="result-finalizing" element={<ExamMarksCorrection />} />
+        <Route path="result-archive" element={<ExamMarksCorrection />} />
         <Route path="incomplete" element={<ExamIncomplete />} />
         <Route path="gazette" element={<ExamGazette />} />
         <Route path="probation" element={<ExamProbation />} />

@@ -168,6 +168,10 @@ async function overrideCourseResult(req, res) {
 
     const result = await prisma.courseResult.findUnique({ where: { id } });
     if (!result) return res.status(404).json({ error: 'Result not found.' });
+    const { isImmutableStatus } = require('../../utils/lmsGrading');
+    if (isImmutableStatus(result.status)) {
+      return res.status(409).json({ error: 'Submitted/finalized results cannot be edited by any role, including Super Admin.' });
+    }
 
     const editable = ['assignmentMarks', 'quizMarks', 'midMarks', 'finalMarks', 'totalPercent', 'letterGrade', 'gradePoints', 'status', 'remarks'];
     const data = {};

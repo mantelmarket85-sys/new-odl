@@ -17,7 +17,8 @@ const Results = () => {
   // Task 4 — auto-generated, weightage-driven results table for EVERY enrolled
   // course (zero-state 0s before publish). Used to render the results table
   // even when the transcript has no published terms yet.
-  const { data: allData, reload: reloadAll } = useApi(() => api.student.resultsAll(), []);
+  const reloadAll = async () => {};
+  const allData = null;
   const [active, setActive] = useState(0);
 
   // ----------------------------------------------------------------
@@ -52,18 +53,8 @@ const Results = () => {
   // enrolled course still shows up with 0s (zero-state) instead of an empty
   // page. The two shapes are compatible (termCode / termTitle / rows[]).
   const transcriptTerms = useMemo(() => data?.terms || [], [data]);
-  const allTerms = useMemo(() => allData?.terms || [], [allData]);
-  const usingZeroState = transcriptTerms.length === 0 && allTerms.length > 0;
-  // Normalize zero-state terms so they carry the same fields the render path
-  // expects (gpa / totalCredits), defaulting to 0 until marks are published.
-  const terms = useMemo(() => {
-    if (!usingZeroState) return transcriptTerms;
-    return allTerms.map((t) => ({
-      ...t,
-      gpa: t.gpa ?? 0,
-      totalCredits: (t.rows || []).reduce((s, r) => s + (Number(r.creditHours) || 0), 0),
-    }));
-  }, [usingZeroState, transcriptTerms, allTerms]);
+  const usingZeroState = false;
+  const terms = transcriptTerms;
   const current = terms[active] || null;
 
   // Map resultId → lab info so each transcript row can surface its lab tasks.
@@ -209,17 +200,26 @@ const Results = () => {
       {error ? (
         <ErrorState description={error} onRetry={reload} />
       ) : terms.length === 0 ? (
-        <EmptyState icon="Award" title="No courses yet" description="Your results table will appear here automatically once you are enrolled in courses." />
+        <EmptyState icon="Award" title="No published results yet" description="Your unofficial transcript appears after the Exam Controller declares results. Official transcripts follow official declaration." />
       ) : (
         <>
-          {usingZeroState && (
+          {current?.publicationStatus === "UNOFFICIAL_DECLARED" && (
             <div className="mb-5 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 flex items-start gap-3">
               <Award size={18} className="text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Results not published yet</p>
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200">Unofficial result</p>
                 <p className="text-xs text-amber-700/90 dark:text-amber-300/80">
-                  Each assessment shows <span className="font-semibold">Pending</span> until your instructor uploads marks — click <span className="font-semibold">Refresh</span> to pull the latest values.
+                  This is your unofficial transcript. The official transcript appears after Result Finalizing &amp; Official Declaration.
                 </p>
+              </div>
+            </div>
+          )}
+          {(current?.official || current?.publicationStatus === "ARCHIVED" || current?.publicationStatus === "OFFICIAL_FINALIZED") && (
+            <div className="mb-5 rounded-2xl border border-emerald-200 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3 flex items-start gap-3">
+              <Award size={18} className="text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">Official transcript</p>
+                <p className="text-xs text-emerald-700/90 dark:text-emerald-300/80">GPA {Number(current.gpa || 0).toFixed(2)} · CGPA {Number(data?.cgpa || 0).toFixed(2)}</p>
               </div>
             </div>
           )}

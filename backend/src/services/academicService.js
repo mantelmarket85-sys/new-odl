@@ -12,6 +12,8 @@
 const prisma = require('../utils/prisma');
 const { buildResultGrades, computeGPA } = require('../utils/lmsGrading');
 const { safeJson } = require('../utils/lmsHelpers');
+const { isStudentVisibleStatus } = require('../utils/academicPolicy');
+const lifecycle = require('./resultLifecycle');
 
 // ------------------------------------------------------------
 // Attendance: compute present/absent/late counts + percentage for
@@ -202,6 +204,8 @@ async function recomputeResult(resultId) {
     include: { offering: true },
   });
   if (!result) return null;
+  const { isImmutableStatus } = require('../utils/lmsGrading');
+  if (isImmutableStatus(result.status)) return result;
   const grades = buildResultGrades(result, result.offering);
   return prisma.courseResult.update({
     where: { id: resultId },
@@ -221,47 +225,7 @@ async function previewResultGrades(offeringId, componentMarks) {
 // course/term info + GPA per term and CGPA.
 // ------------------------------------------------------------
 async function studentTranscript(studentId) {
-  const results = await prisma.courseResult.findMany({
-    where: { studentId, status: 'PUBLISHED' },
-    include: {
-      offering: {
-        include: { course: true, term: true },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
-  const terms = {};
-  const rows = [];
-  for (const r of results) {
-    const course = r.offering.course;
-    const term = r.offering.term;
-    const ch = course ? course.creditHours : 3;
-    const row = {
-      resultId: r.id,
-      courseCode: course ? course.code : '—',
-      courseTitle: course ? course.title : '—',
-      creditHours: ch,
-      termCode: term ? term.code : '—',
-      termTitle: term ? term.title : '—',
-      totalPercent: r.totalPercent,
-      letterGrade: r.letterGrade,
-      gradePoints: r.gradePoints,
-    };
-    rows.push(row);
-    const key = term ? term.code : 'NA';
-    if (!terms[key]) terms[key] = { termCode: key, termTitle: row.termTitle, rows: [] };
-    terms[key].rows.push(row);
-  }
-  const termSummaries = Object.values(terms).map((t) => ({
-    termCode: t.termCode,
-    termTitle: t.termTitle,
-    gpa: computeGPA(t.rows),
-    totalCredits: t.rows.reduce((s, x) => s + (x.creditHours || 0), 0),
-    rows: t.rows,
-  }));
-  const cgpa = computeGPA(rows);
-  const totalCredits = rows.reduce((s, x) => s + (x.creditHours || 0), 0);
-  return { cgpa, totalCredits, terms: termSummaries, rows };
+  return lifecycle.visibleTranscript(studentId);
 }
 
 // ------------------------------------------------------------
@@ -286,7 +250,7 @@ async function legacyResultBreakdown(offeringId, studentId) {
     where: { offeringId_studentId: { offeringId, studentId } },
     include: { offering: { include: { course: true } } },
   });
-  if (!result || result.status !== 'PUBLISHED') return null;
+  if (!result || !isStudentVisibleStatus(result.status)) return null;
   const offering = result.offering;
   const course = offering ? offering.course : null;
   const hasLab = !!(course && course.hasLab);
@@ -544,7 +508,7 @@ async function buildStudentResultBreakdown(offeringId, studentId, publishedOnly)
   const result = await prisma.courseResult.findUnique({
     where: { offeringId_studentId: { offeringId, studentId } },
   }).catch(() => null);
-  if (publishedOnly && (!result || result.status !== 'PUBLISHED')) return null;
+  if (publishedOnly && (!result || !isStudentVisibleStatus(result.status))) return null;
 
   const course = offering.course;
   const hasLab = !!course.hasLab;

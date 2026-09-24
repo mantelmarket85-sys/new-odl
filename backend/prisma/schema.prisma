@@ -730,6 +730,9 @@ model LmsUser {
   lastLoginAt          DateTime?
   failedLoginAttempts  Int       @default(0)
   lockedUntil          DateTime?
+  // 5-digit Gradebook PIN (bcrypt hash). Never returned in API responses.
+  gradebookPinHash     String?
+  gradebookPinSetAt    DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -797,7 +800,11 @@ model LmsStudentProfile {
   department        String
   rollNumber        String
   registrationNumber String
-  session           String   // cycle name e.g. "Fall 2026"
+  session           String   // original admission batch, e.g. "Fall 2026" (legacy)
+  // Admission batch NEVER changes as the student progresses. Falls back to `session`.
+  admissionBatch    String?
+  currentSemester   Int?
+  currentSession    String?  // current academic session/year (may change)
   enrollmentDate    DateTime
 
   // Documents status
@@ -1558,13 +1565,23 @@ model CourseResult {
   midMax          Float @default(100)
   finalMax        Float @default(100)
   labMax          Float @default(100)
+  projectMarks    Float @default(0)
+  projectMax      Float @default(100)
   totalPercent Float    @default(0)
   letterGrade  String?
   gradePoints  Float    @default(0)
-  // DRAFT | PUBLISHED
+  // DRAFT | READY_FOR_REVIEW | SUBMITTED | LOCKED | COMPILED |
+  // UNOFFICIAL_DECLARED | OFFICIAL_FINALIZED | ARCHIVED
+  // (legacy: PUBLISHED | FINALIZED still recognised as immutable)
   status       String   @default("DRAFT")
+  academicStatus String?                         // W | I | null
   remarks      String?
   publishedAt  DateTime?
+  submittedAt  DateTime?
+  submittedById String?
+  lockedAt     DateTime?
+  compiledAt   DateTime?
+  version      Int      @default(1)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1574,6 +1591,52 @@ model CourseResult {
   @@unique([offeringId, studentId])
   @@index([offeringId])
   @@index([studentId])
+  @@index([status])
+}
+
+// Per-student semester compilation / publication record.
+model SemesterResult {
+  id                   Int      @id @default(autoincrement())
+  studentId            String
+  programId            Int?
+  programShortForm     String?
+  department           String?
+  admissionBatch       String?
+  semesterNumber       Int
+  termId               Int?
+  sessionLabel         String?
+  gpa                  Float    @default(0)
+  cgpa                 Float    @default(0)
+  totalCredits         Float    @default(0)
+  earnedCredits        Float    @default(0)
+  academicStanding     String?
+  // COMPILED | UNOFFICIAL_DECLARED | OFFICIAL_FINALIZED | ARCHIVED
+  status               String   @default("COMPILED")
+  compiledAt           DateTime?
+  unofficialDeclaredAt DateTime?
+  unofficialDeclaredById String?
+  officialFinalizedAt  DateTime?
+  officialDeclaredAt   DateTime?
+  officialDeclaredById String?
+  archivedAt           DateTime?
+  version              Int      @default(1)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([studentId, semesterNumber, programShortForm])
+  @@index([studentId])
+  @@index([status])
+  @@index([department, programShortForm, semesterNumber])
+}
+
+model GradebookPinAttempt {
+  id            Int       @id @default(autoincrement())
+  userId        String    @unique
+  failedCount   Int       @default(0)
+  lockedUntil   DateTime?
+  lastAttemptAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 // ------------------------------------------------------------
@@ -2005,6 +2068,9 @@ model StudentAppeal {
   feedbackResolved  Boolean?   // student says the issue was resolved (Yes/No)
   feedbackRating    Int?       // 1..5
   feedbackComment   String?
+  feedbackAt        DateTime?
+
+  student LmsUser @relation("  feedbackComment   String?
   feedbackAt        DateTime?
 
   student LmsUser @relation("StudentAppeals", fields: [studentId], references: [id], onDelete: Cascade)

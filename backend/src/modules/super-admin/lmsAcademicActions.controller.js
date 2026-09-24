@@ -65,6 +65,10 @@ async function upsertResult(req, res) {
     const existing = await prisma.courseResult.findUnique({
       where: { offeringId_studentId: { offeringId, studentId } },
     }).catch(() => null);
+    const { isImmutableStatus } = require('../../utils/lmsGrading');
+    if (existing && isImmutableStatus(existing.status)) {
+      return res.status(409).json({ error: 'Submitted/finalized results cannot be edited by any role, including Super Admin.' });
+    }
 
     const data = {
       offeringId, studentId,
@@ -101,6 +105,7 @@ async function publishResult(req, res) {
     const id = parseInt(req.params.id, 10);
     const existing = await prisma.courseResult.findUnique({ where: { id } });
     if (!existing) return res.status(404).json({ error: 'Result not found' });
+    return res.status(400).json({ error: 'Individual Super Admin publish is disabled. Use Exam Controller unofficial/official declaration.' });
     const result = await prisma.courseResult.update({ where: { id }, data: { status: 'PUBLISHED', publishedAt: new Date() } });
     await logLmsAudit({ req, action: 'RESULT_PUBLISH', entity: 'CourseResult', entityId: id, before: existing, after: result, actorRole: 'Teacher' });
     await logSaActivity({ req, module: 'lms', action: 'result_publish', description: `Published result #${id}`, metadata: { resultId: id } });

@@ -282,7 +282,7 @@ router.get('/dashboard', asyncHandler(async (req, res) => {
     prisma.quiz.count({
       where: { offeringId: { in: offeringIds }, isPublished: true, isDeleted: false, attempts: { none: { studentId } } },
     }),
-    prisma.courseResult.count({ where: { studentId, status: 'PUBLISHED' } }),
+    prisma.courseResult.count({ where: { studentId, status: { in: ['UNOFFICIAL_DECLARED', 'OFFICIAL_FINALIZED', 'ARCHIVED', 'PUBLISHED'] } } }),
   ]);
 
   // Attendance overall
@@ -1344,7 +1344,7 @@ router.post('/quizzes/:id/submit', validate([
 router.get('/results', asyncHandler(async (req, res) => {
   const studentId = req.lmsUser.id;
   const results = await prisma.courseResult.findMany({
-    where: { studentId, status: 'PUBLISHED' },
+    where: { studentId, status: { in: ['UNOFFICIAL_DECLARED', 'OFFICIAL_FINALIZED', 'ARCHIVED', 'PUBLISHED'] } },
     include: { offering: { include: { course: true, term: true } } },
     orderBy: { publishedAt: 'desc' },
   });
@@ -2979,7 +2979,7 @@ router.get('/activity', asyncHandler(async (req, res) => {
       orderBy: { registeredAt: 'desc' }, take: 50,
     }),
     prisma.courseResult.findMany({
-      where: { studentId, status: 'PUBLISHED' },
+      where: { studentId, status: { in: ['UNOFFICIAL_DECLARED', 'OFFICIAL_FINALIZED', 'ARCHIVED', 'PUBLISHED'] } },
       include: { offering: { include: { course: true } } },
       orderBy: { publishedAt: 'desc' }, take: 50,
     }),

@@ -24,7 +24,9 @@ const { validate } = require('../../../middleware/validate');
 const { asyncHandler, parseListQuery, paginated, httpError } = require('../../../utils/lmsHelpers');
 const { audit } = require('../../../utils/lmsAudit');
 const { notify, notifyMany } = require('../../../utils/lmsNotify');
-const { computeGPA, gradeFromPercent, buildResultGrades, PASS_PERCENT } = require('../../../utils/lmsGrading');
+const { computeGPA, gradeFromPercent, buildResultGrades, PASS_PERCENT, isImmutableStatus } = require('../../../utils/lmsGrading');
+const lifecycle = require('../../../services/resultLifecycle');
+const { isStudentVisibleStatus } = require('../../../utils/academicPolicy');
 const { displayName, nameMap } = require('../../../utils/lmsWorkflow');
 const { uploadExamPaper, uploadExamProfilePhoto } = require('../../../middleware/upload');
 
@@ -595,20 +597,7 @@ router.get('/results', EXAM_OR_GOV, asyncHandler(async (req, res) => {
 }));
 
 router.put('/results/:id/publish', EXAM, asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const existing = await prisma.courseResult.findUnique({ where: { id }, include: { offering: { include: { course: true } } } });
-  if (!existing) throw httpError(404, 'Result not found');
-  if (existing.status === 'PUBLISHED') return res.json({ result: existing, alreadyPublished: true });
-  const result = await prisma.courseResult.update({
-    where: { id }, data: { status: 'PUBLISHED', publishedAt: new Date() },
-  });
-  await audit(req, 'EXAM_RESULT_PUBLISH', 'CourseResult', String(id), { before: existing, after: result });
-  await notify(existing.studentId, {
-    title: 'Result published',
-    message: `Your result for ${existing.offering?.course?.code || 'a course'} has been published. Grade: ${result.letterGrade || '—'}`,
-    type: 'SUCCESS',
-  });
-  res.json({ result });
+  throw httpError(400, 'Individual publish is disabled. Declare unofficial then official results for the Department → Program → Semester scope.');
 }));
 
 // ============================================================
@@ -1479,6 +1468,7 @@ router.post('/offerings/:id/compile', EXAM, asyncHandler(async (req, res) => {
       const existing = await tx.courseResult.findUnique({
         where: { offeringId_studentId: { offeringId, studentId: sid } },
       });
+      if (existing && isImmutableStatus(existing.status)) continue;
       const component = {
         assignmentMarks: asgMaxTotal ? asgMarks : (existing?.assignmentMarks ?? 0),
         assignmentMax: asgMaxTotal || (existing?.assignmentMax ?? 100),
@@ -2448,10 +2438,30 @@ router.get('/compilation/results', EXAM_OR_GOV, asyncHandler(async (req, res) =>
   res.json({
     term: term?.title || null,
     total: rows.length,
-    draft: rows.filter((r) => r.status === 'DRAFT').length,
-    published: rows.filter((r) => r.status === 'PUBLISHED').length,
+    draft: rows.filter((r) => r.status === 'DRAFT' || r.status === 'READY_FOR_REVIEW').length,
+    submitted: rows.filter((r) => ['SUBMITTED', 'LOCKED'].includes(r.status)).length,
+    compiled: rows.filter((r) => r.status === 'COMPILED').length,
+    unofficial: rows.filter((r) => r.status === 'UNOFFICIAL_DECLARED').length,
+    official: rows.filter((r) => ['OFFICIAL_FINALIZED', 'ARCHIVED', 'PUBLISHED'].includes(r.status)).length,
+    published: rows.filter((r) => isStudentVisibleStatus(r.status)).length,
     results: rows,
   });
+}));
+
+router.get('/compilation/hierarchy', EXAM_OR_GOV, asyncHandler(async (req, res) => {
+  res.json(await lifecycle.hierarchy());
+}));
+
+router.get('/compilation/collection', EXAM_OR_GOV, asyncHandler(async (req, res) => {
+  const { department, program, semester } = req.query;
+  res.json(await lifecycle.semesterMatrix({ department, program, semester }));
+}));
+
+router.get('/compilation/archive', EXAM_OR_GOV, asyncHandler(async (req, res) => {
+  const { department, program, semester } = req.query;
+  const matrix = await lifecycle.semesterMatrix({ department, program, semester });
+  const students = (matrix.students || []).filter((s) => Object.values(s.courses || {}).some((c) => c.status === 'ARCHIVED' || c.status === 'OFFICIAL_FINALIZED'));
+  res.json({ ...matrix, students, readOnly: true });
 }));
 
 // Compile + publish results across a scope (semester / program / section).
@@ -2460,106 +2470,71 @@ router.get('/compilation/results', EXAM_OR_GOV, asyncHandler(async (req, res) =>
 // in real time for every affected student, so the Gazette Review and
 // transcript are always in sync with the published record.
 router.post('/compilation/compile', EXAM, asyncHandler(async (req, res) => {
-  const { program, semester, section } = req.body || {};
+  const { department, program, semester } = req.body || {};
+  if (!department || !program || semester == null || semester === '') {
+    throw httpError(400, 'Department, Program and Semester are required.');
+  }
+  const out = await lifecycle.compileScope(req, { department, program, semester });
+  res.json({ success: true, stage: 'RESULTS_COLLECTION', ...out, compiled: out.students, published: 0, transcriptsIssued: 0 });
+}));
+
+router.post('/compilation/unofficial', EXAM, asyncHandler(async (req, res) => {
+  const { department, program, semester } = req.body || {};
+  if (!department || !program || semester == null || semester === '') {
+    throw httpError(400, 'Department, Program and Semester are required.');
+  }
+  const out = await lifecycle.declareUnofficial(req, { department, program, semester });
   const term = await currentTerm();
-  const termId = term ? term.id : -1;
-
-  // Determine candidate offerings within the scope.
-  const offerings = await prisma.courseOffering.findMany({
-    where: { termId, isDeleted: false },
-    include: { course: { include: { program: true, semester: true } }, sections: true },
-  });
-  const scoped = offerings.filter((o) => {
-    if (program) {
-      const code = o.course?.program?.shortForm || o.course?.program?.code;
-      if (code !== program) return false;
-    }
-    if (semester && o.course?.semester && String(o.course.semester.number) !== String(semester)) return false;
-    if (section && !(o.sections || []).some((s) => s.name === section)) return false;
-    return true;
-  });
-  if (!scoped.length) throw httpError(400, 'No offerings match the selected scope.');
-
-  let publishedCount = 0;
-  const studentIds = new Set();
-  await prisma.$transaction(async (tx) => {
-    for (const o of scoped) {
-      const draftCount = await tx.courseResult.count({
-        where: { offeringId: o.id, status: 'DRAFT' },
-      });
-      publishedCount += draftCount;
-      const rs = await tx.courseResult.findMany({ where: { offeringId: o.id }, select: { studentId: true } });
-      rs.forEach((r) => studentIds.add(r.studentId));
-    }
-  });
-
-  // §1.4.2 — auto-flow published results into a Gazette (gazette format).
   let gazette = null;
   try {
-    const rows = await buildGazetteRows({ termId, program, semester, section });
+    const rows = await buildGazetteRows({ termId: term?.id, program, semester });
     if (rows.length) {
-      const passCount = rows.filter((r) => r.pass).length;
-      const prog = program
-        ? await prisma.lmsProgram.findFirst({ where: { OR: [{ shortForm: program }, { code: program }] } })
-        : null;
+      const prog = await prisma.lmsProgram.findFirst({ where: { OR: [{ shortForm: program }, { code: program }] } });
       gazette = await prisma.gazette.create({
         data: {
-          termId,
-          title: `Gazette · ${program || 'All Programs'}${semester ? ` · Sem ${semester}` : ''}${section ? ` · Sec ${section}` : ''} (auto)`,
-          department: prog?.department || null, program: prog?.name || program || null,
-          programShortForm: program || null, semester: semester ? String(semester) : null,
-          section: section || null, status: 'DRAFT',
-          totalStudents: rows.length, passCount, failCount: rows.length - passCount,
+          termId: term?.id,
+          title: `Gazette · ${program} · Sem ${semester} (admission batch preserved)`,
+          department, program: prog?.name || program, programShortForm: program,
+          semester: String(semester), status: 'DRAFT',
+          totalStudents: rows.length,
+          passCount: rows.filter((r) => r.pass).length,
+          failCount: rows.length - rows.filter((r) => r.pass).length,
           createdById: req.lmsUser.id,
         },
       });
     }
-  } catch (e) { /* gazette auto-flow is best-effort — never block publishing */ void e; }
-
-  await audit(req, 'EXAM_RESULTS_COMPILE', 'CourseOffering', scoped.map((o) => o.id).join(','), {
-    after: { scope: { program, semester, section }, offerings: scoped.length, compiled: publishedCount, gazetteId: gazette?.id || null },
-  });
-  res.json({
-    success: true, stage: 'MARKS_COLLECTION', offerings: scoped.length, compiled: publishedCount,
-    published: 0, students: studentIds.size,
-    gazette: gazette ? { id: gazette.id, title: gazette.title, totalStudents: gazette.totalStudents } : null,
-    transcriptsIssued: 0,
-  });
+  } catch (e) { void e; }
+  res.json({ success: true, stage: 'UNOFFICIAL_DECLARED', ...out, gazette });
 }));
 
 // Finalize a compiled scope. FINALIZED is the Result Publishing queue: it is
 // hidden from students but locked against every teacher mutation.
 router.post('/compilation/finalize', EXAM, asyncHandler(async (req, res) => {
   const { department, program, semester } = req.body || {};
-  if (!department || !program || !semester) throw httpError(400, 'Department, Program and Semester are required.');
+  if (!department || !program || semester == null || semester === '') throw httpError(400, 'Department, Program and Semester are required.');
+  const out = await lifecycle.finalizeOfficial(req, { department, program, semester });
   const term = await currentTerm();
-  const offerings = await prisma.courseOffering.findMany({
-    where: { termId: term ? term.id : -1, isDeleted: false },
-    include: { course: { include: { program: true, semester: true } } },
+  await prisma.gazette.updateMany({
+    where: { termId: term?.id, department, programShortForm: program, semester: String(semester), status: 'DRAFT' },
+    data: { status: 'APPROVED', approvedById: req.lmsUser.id, approvedAt: new Date() },
   });
-  const ids = offerings.filter((o) => o.course?.program?.department === department
-    && (o.course?.program?.shortForm || o.course?.program?.code) === program
-    && String(o.course?.semester?.number || '') === String(semester)).map((o) => o.id);
-  if (!ids.length) throw httpError(400, 'No offerings match the selected scope.');
-  const updated = await prisma.courseResult.updateMany({ where: { offeringId: { in: ids }, status: 'DRAFT' }, data: { status: 'FINALIZED' } });
-  await prisma.gazette.updateMany({ where: { termId: term?.id, department, programShortForm: program, semester: String(semester), status: 'DRAFT' }, data: { status: 'APPROVED', approvedById: req.lmsUser.id, approvedAt: new Date() } });
-  await audit(req, 'EXAM_RESULTS_FINALIZE', 'CourseOffering', ids.join(','), { after: { department, program, semester, finalized: updated.count } });
-  res.json({ success: true, stage: 'RESULT_PUBLISHING', finalized: updated.count });
+  res.json({ success: true, stage: 'OFFICIAL_FINALIZED', ...out });
 }));
 
 // Publish a finalized scope, then issue and notify transcripts in real time.
 router.post('/compilation/publish', EXAM, asyncHandler(async (req, res) => {
   const { department, program, semester } = req.body || {};
-  if (!department || !program || !semester) throw httpError(400, 'Department, Program and Semester are required.');
+  if (!department || !program || semester == null || semester === '') throw httpError(400, 'Department, Program and Semester are required.');
+  const out = await lifecycle.declareOfficial(req, { department, program, semester });
   const term = await currentTerm();
-  const offerings = await prisma.courseOffering.findMany({
-    where: { termId: term ? term.id : -1, isDeleted: false },
-    include: { course: { include: { program: true, semester: true } } },
+  await prisma.gazette.updateMany({
+    where: { termId: term?.id, department, programShortForm: program, semester: String(semester), status: 'APPROVED' },
+    data: { status: 'PUBLISHED', publishedById: req.lmsUser.id, publishedAt: new Date() },
   });
-  const ids = offerings.filter((o) => o.course?.program?.department === department
-    && (o.course?.program?.shortForm || o.course?.program?.code) === program
-    && String(o.course?.semester?.number || '') === String(semester)).map((o) => o.id);
-  if (!ids.length) throw httpError(400, 'No offerings match the selected scope.');
+  res.json({ success: true, stage: 'ARCHIVED', ...out, published: out.students, transcriptsIssued: out.students });
+}));
+
+/* legacy publish body disabled
   const pending = await prisma.courseResult.findMany({ where: { offeringId: { in: ids }, status: 'FINALIZED' }, select: { id: true, studentId: true } });
   if (!pending.length) throw httpError(409, 'No finalized results are waiting in Result Publishing for this scope.');
   await prisma.courseResult.updateMany({ where: { id: { in: pending.map((r) => r.id) } }, data: { status: 'PUBLISHED', publishedAt: new Date() } });
@@ -2577,6 +2552,7 @@ router.post('/compilation/publish', EXAM, asyncHandler(async (req, res) => {
   await audit(req, 'EXAM_RESULTS_PUBLISH_SCOPE', 'CourseOffering', ids.join(','), { after: { department, program, semester, published: pending.length, transcriptsIssued } });
   res.json({ success: true, stage: 'PUBLISHED', published: pending.length, transcriptsIssued });
 }));
+*/
 
 // NOTE: The "Result Hold and Release" module (POST /results/hold and
 // POST /results/release) was removed per the LMS update requirements
@@ -2601,7 +2577,7 @@ async function buildGazetteRows({ termId, program, semester, section }) {
   });
   const offeringIds = scoped.map((o) => o.id);
   const results = await prisma.courseResult.findMany({
-    where: { offeringId: { in: offeringIds }, status: { in: ['DRAFT', 'FINALIZED', 'PUBLISHED'] } },
+    where: { offeringId: { in: offeringIds }, status: { in: ['SUBMITTED', 'LOCKED', 'COMPILED', 'UNOFFICIAL_DECLARED', 'OFFICIAL_FINALIZED', 'ARCHIVED', 'FINALIZED', 'PUBLISHED'] } },
     include: { student: { include: { profile: true } }, offering: { include: { course: true } } },
   });
   return results.map((r) => ({
