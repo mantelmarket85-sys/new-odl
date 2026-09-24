@@ -1,6 +1,10 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  provider = "prisma-client-js"
+  // "native" builds the engine for whatever OS runs `prisma generate`
+  // (Windows/macOS/Linux laptops, or the deployment server). Extra pinned
+  // targets (e.g. "debian-openssl-3.0.x") force downloads from
+  // binaries.prisma.sh that commonly fail behind restricted/flaky networks
+  // and are unnecessary: just run `npx prisma generate` on the deploy host.
 }
 
 datasource db {

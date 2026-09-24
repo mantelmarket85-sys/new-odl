@@ -579,4 +579,3 @@ const ExamMarksCorrection = () => {
 };
 
 export default ExamMarksCorrection;
-ksCorrection;
