@@ -993,24 +993,6 @@ function GradebookTab({ offeringId }) {
     return <span className="text-app">{v}</span>;
   };
 
-  const cellDisplay = (r, col) => {
-    const cell = r.cells?.[col.key];
-    if (cell) {
-      if (cell.pending || cell.converted == null) return <span className="font-medium text-slate-400">Pending</span>;
-      return (
-        <span className="text-app">
-          {Number(cell.converted).toFixed(2)}
-          {cell.obtained != null && cell.total != null ? (
-            <span className="block text-[9px] font-normal text-muted-app">{cell.obtained}/{cell.total}</span>
-          ) : null}
-        </span>
-      );
-    }
-    const v = r[col.marksField];
-    if (v == null || (Number(v) === 0 && r.resultStatus !== "PUBLISHED")) return <span className="font-medium text-slate-400">Pending</span>;
-    return <span className="text-app">{v}</span>;
-  };
-
   if (loading) return <Skeleton className="h-48 w-full rounded-2xl" />;
   if (error) return <ErrorState description={error} onRetry={reload} />;
   if (rows.length === 0) return <EmptyState icon="Award" title="No students" description="No enrolled students to grade." />;

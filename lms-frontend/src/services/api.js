@@ -728,8 +728,6 @@ const exam = {
 // improvement plans, program evaluation, analytics, reports.
 // ============================================================
 const qec = {
-  // Dashbo============================================================
-const qec = {
   // Dashboard & live counts
   dashboard: () => get('/lms/academic/qec/dashboard'),
   counts: () => get('/lms/academic/qec/counts'),
